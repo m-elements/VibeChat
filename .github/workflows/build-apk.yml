@@ -2,7 +2,6 @@ name: VibeChat Android APK
 
 on:
   workflow_dispatch:
-
   push:
     branches:
       - main
@@ -22,14 +21,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Check Android Project
-        run: |
-          test -f android/settings.gradle
-          test -f android/app/build.gradle
-          test -f android/app/src/main/AndroidManifest.xml
-          test -f android/app/src/main/java/com/vibechat/app/MainActivity.java
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
       - name: Build APK
         run: |
           cd android
           gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VibeChat-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
