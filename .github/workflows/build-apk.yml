@@ -1,0 +1,149 @@
+name: Build VibeChat APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK directly with Android SDK tools
+        run: |
+          set -e
+          rm -rf apk-build
+          mkdir -p apk-build/src/com/vibechat/app apk-build/res/values apk-build/res/mipmap apk-build/gen apk-build/obj apk-build/bin
+
+          if [ -f "1795404380602.png" ]; then
+            cp "1795404380602.png" "apk-build/res/mipmap/ic_launcher.png"
+          fi
+
+          cat << 'EOF' > apk-build/res/values/strings.xml
+          <resources><string name="app_name">VibeChat</string></resources>
+          EOF
+
+          cat << 'EOF' > apk-build/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.vibechat.app"
+              android:versionCode="1"
+              android:versionName="1.0">
+
+            <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.CAMERA" />
+            <uses-permission android:name="android.permission.RECORD_AUDIO" />
+            <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+            <application
+                android:label="@string/app_name"
+                android:icon="@mipmap/ic_launcher"
+                android:usesCleartextTraffic="true">
+              <activity
+                  android:name=".MainActivity"
+                  android:exported="true"
+                  android:configChanges="orientation|screenSize|keyboardHidden">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN" />
+                  <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > apk-build/src/com/vibechat/app/MainActivity.java
+          package com.vibechat.app;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.webkit.PermissionRequest;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+            private WebView webView;
+
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
+
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                boolean needCam = checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED;
+                boolean needMic = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+                if (needCam || needMic) {
+                  requestPermissions(new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO
+                  }, 101);
+                }
+              }
+
+              webView = new WebView(this);
+              setContentView(webView);
+
+              WebSettings ws = webView.getSettings();
+              ws.setJavaScriptEnabled(true);
+              ws.setDomStorageEnabled(true);
+              ws.setMediaPlaybackRequiresUserGesture(false);
+
+              webView.setWebViewClient(new WebViewClient());
+              webView.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                  runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                      request.grant(request.getResources());
+                    }
+                  });
+                }
+              });
+
+              webView.loadUrl("https://m-elements.github.io/vibechat/");
+            }
+          }
+          EOF
+
+          PLATFORM_JAR=$(find "$ANDROID_HOME/platforms" -name "android.jar" | sort -V | tail -n 1)
+          BUILD_TOOLS_DIR=$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 | sort -V | tail -n 1)
+          AAPT2="$BUILD_TOOLS_DIR/aapt2"
+          D8="$BUILD_TOOLS_DIR/d8"
+          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+
+          "$AAPT2" compile --dir apk-build/res -o apk-build/obj/res.zip
+          "$AAPT2" link \
+            -I "$PLATFORM_JAR" \
+            --manifest apk-build/AndroidManifest.xml \
+            --java apk-build/gen \
+            --min-sdk-version 24 \
+            --target-sdk-version 34 \
+            -o apk-build/bin/unsigned.apk \
+            apk-build/obj/res.zip
+
+          javac -source 1.8 -target 1.8 -cp "$PLATFORM_JAR" -d apk-build/obj $(find apk-build/src apk-build/gen -name "*.java")
+          "$D8" --dex --lib "$PLATFORM_JAR" --output apk-build/bin $(find apk-build/obj -name "*.class")
+
+          cd apk-build/bin
+          zip -q -u unsigned.apk classes.dex
+
+          "$ZIPALIGN" -f 4 unsigned.apk aligned.apk
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=VibeChat,O=Dev,C=IN"
+          "$APKSIGNER" sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out ../../VibeChat.apk aligned.apk
+
+      - name: Upload VibeChat APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibechat-apk
+          path: apk-build/VibeChat.apk
+          
