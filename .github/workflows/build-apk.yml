@@ -1,62 +1,132 @@
-name: Build VibeChat APK
+name: VibeChat APK Builder
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Build APK directly with Android SDK tools
+      - name: Check Icon File
         run: |
-          set -e
-          rm -rf apk-build
-          mkdir -p apk-build/src/com/vibechat/app apk-build/res/values apk-build/res/mipmap apk-build/gen apk-build/obj apk-build/bin
+          test -f 1795404380602.png
 
-          if [ -f "1795404380602.png" ]; then
-            cp "1795404380602.png" "apk-build/res/mipmap/ic_launcher.png"
-          fi
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-          cat << 'EOF' > apk-build/res/values/strings.xml
-          <resources><string name="app_name">VibeChat</string></resources>
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Setup Android SDK
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER=$(find "$SDK_ROOT" -type f -name sdkmanager | head -n 1)
+
+          test -n "$SDKMANAGER"
+
+          yes | "$SDKMANAGER" --licenses || true
+
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Create App Icons
+        run: |
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "app/src/main/res/mipmap-$density"
+            cp 1795404380602.png "app/src/main/res/mipmap-$density/ic_launcher.png"
+          done
+
+      - name: Create Android Project
+        run: |
+          mkdir -p app/src/main/java/com/vibechat/app
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "VibeChat"
+          include ':app'
           EOF
 
-          cat << 'EOF' > apk-build/AndroidManifest.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              package="com.vibechat.app"
-              android:versionCode="1"
-              android:versionName="1.0">
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
 
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.CAMERA" />
-            <uses-permission android:name="android.permission.RECORD_AUDIO" />
-            <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
 
-            <application
-                android:label="@string/app_name"
-                android:icon="@mipmap/ic_launcher"
-                android:usesCleartextTraffic="true">
-              <activity
-                  android:name=".MainActivity"
-                  android:exported="true"
-                  android:configChanges="orientation|screenSize|keyboardHidden">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN" />
-                  <category android:name="android.intent.category.LAUNCHER" />
-                </intent-filter>
-              </activity>
-            </application>
+          android {
+              namespace 'com.vibechat.app'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.vibechat.app'
+                  minSdk 24
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+              <application
+                  android:theme="@android:style/Theme.Material.NoActionBar"
+                  android:label="VibeChat"
+                  android:icon="@mipmap/ic_launcher"
+                  android:usesCleartextTraffic="true"
+                  android:hardwareAccelerated="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:screenOrientation="portrait"
+                      android:configChanges="orientation|screenSize|keyboardHidden"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+
+                  </activity>
+              </application>
           </manifest>
           EOF
 
-          cat << 'EOF' > apk-build/src/com/vibechat/app/MainActivity.java
+          cat > app/src/main/java/com/vibechat/app/MainActivity.java <<'EOF'
           package com.vibechat.app;
 
           import android.Manifest;
@@ -69,81 +139,78 @@ jobs:
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
+          import android.view.Window;
+          import android.view.WindowManager;
 
           public class MainActivity extends Activity {
-            private WebView webView;
 
-            @Override
-            protected void onCreate(Bundle savedInstanceState) {
-              super.onCreate(savedInstanceState);
+              private WebView webView;
 
-              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                boolean needCam = checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED;
-                boolean needMic = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
-                if (needCam || needMic) {
-                  requestPermissions(new String[]{
-                    Manifest.permission.CAMERA,
-                    Manifest.permission.RECORD_AUDIO
-                  }, 101);
-                }
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  requestWindowFeature(Window.FEATURE_NO_TITLE);
+
+                  getWindow().setFlags(
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                      WindowManager.LayoutParams.FLAG_FULLSCREEN
+                  );
+
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      boolean needCam = checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED;
+                      boolean needMic = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+                      if (needCam || needMic) {
+                          requestPermissions(new String[]{
+                              Manifest.permission.CAMERA,
+                              Manifest.permission.RECORD_AUDIO
+                          }, 101);
+                      }
+                  }
+
+                  webView = new WebView(this);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onPermissionRequest(final PermissionRequest request) {
+                          runOnUiThread(new Runnable() {
+                              @Override
+                              public void run() {
+                                  request.grant(request.getResources());
+                              }
+                          });
+                      }
+                  });
+
+                  setContentView(webView);
+
+                  webView.loadUrl("https://m-elements.github.io/vibechat/");
               }
 
-              webView = new WebView(this);
-              setContentView(webView);
-
-              WebSettings ws = webView.getSettings();
-              ws.setJavaScriptEnabled(true);
-              ws.setDomStorageEnabled(true);
-              ws.setMediaPlaybackRequiresUserGesture(false);
-
-              webView.setWebViewClient(new WebViewClient());
-              webView.setWebChromeClient(new WebChromeClient() {
-                @Override
-                public void onPermissionRequest(final PermissionRequest request) {
-                  runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                      request.grant(request.getResources());
-                    }
-                  });
-                }
-              });
-
-              webView.loadUrl("https://m-elements.github.io/vibechat/");
-            }
+              @Override
+              protected void onDestroy() {
+                  if (webView != null) {
+                      webView.destroy();
+                  }
+                  super.onDestroy();
+              }
           }
           EOF
 
-          PLATFORM_JAR=$(find "$ANDROID_HOME/platforms" -name "android.jar" | sort -V | tail -n 1)
-          BUILD_TOOLS_DIR=$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 | sort -V | tail -n 1)
-          AAPT2="$BUILD_TOOLS_DIR/aapt2"
-          D8="$BUILD_TOOLS_DIR/d8"
-          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
-          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+      - name: Build APK
+        run: gradle assembleDebug
 
-          "$AAPT2" compile --dir apk-build/res -o apk-build/obj/res.zip
-          "$AAPT2" link \
-            -I "$PLATFORM_JAR" \
-            --manifest apk-build/AndroidManifest.xml \
-            --java apk-build/gen \
-            --min-sdk-version 24 \
-            --target-sdk-version 34 \
-            -o apk-build/bin/unsigned.apk \
-            apk-build/obj/res.zip
-
-          javac -source 1.8 -target 1.8 -cp "$PLATFORM_JAR" -d apk-build/obj $(find apk-build/src apk-build/gen -name "*.java")
-          "$D8" --dex --lib "$PLATFORM_JAR" --output apk-build/bin $(find apk-build/obj -name "*.class")
-
-          cd apk-build/bin
-          zip -q -u unsigned.apk classes.dex
-
-          "$ZIPALIGN" -f 4 unsigned.apk aligned.apk
-          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=VibeChat,O=Dev,C=IN"
-          "$APKSIGNER" sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out ../../VibeChat.apk aligned.apk
-
-      - name: Upload VibeChat APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: vibechat-apk
-          path: apk-build/VibeChat.apk
+          name: VibeChat-Final-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           
