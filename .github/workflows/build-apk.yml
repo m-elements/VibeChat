@@ -12,6 +12,9 @@ jobs:
 
       - name: Setup Java & Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          java-version: '17'
+          build-tools-version: '34.0.0'
 
       - name: Create Android WebView project with custom icon & permissions
         run: |
