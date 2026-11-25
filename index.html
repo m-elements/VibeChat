@@ -8,6 +8,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>VibeChat</title>
 
+<!-- Firebase Compat SDKs (Auth + Firestore) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+<!-- MQTT & PeerJS for Instant Presence, Typing & WebRTC Audio/Video Calls -->
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js" onerror="loadFallback('https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js', () => window.initMqtt && window.initMqtt())"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="loadFallback('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', () => window.initPeer && window.initPeer())"></script>
 <script>
@@ -172,10 +178,10 @@ html, body {
   border: 1px solid var(--lg-border);
   box-shadow: var(--lg-highlight), 0 24px 60px rgba(0, 0, 0, 0.85);
   border-radius: 28px;
-  padding: 24px 20px;
+  padding: 26px 20px;
 }
 .brand {
-  font-size: 25px;
+  font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.5px;
   background: linear-gradient(90deg, var(--v-100), var(--v-300));
@@ -183,11 +189,42 @@ html, body {
   -webkit-text-fill-color: transparent;
 }
 .sub {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--soft);
-  line-height: 1.45;
+  line-height: 1.5;
   margin-top: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+}
+
+.google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(237, 233, 254, 0.36);
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.92), rgba(139, 92, 246, 0.86));
+  box-shadow: var(--lg-highlight), 0 10px 26px rgba(109, 40, 217, 0.44);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.32s var(--spring);
+}
+.google-btn:active { transform: scale(0.96); }
+.g-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #5b21b6;
+  font-weight: 900;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .header {
@@ -747,7 +784,7 @@ html[data-anim="premium"] .msg-row.them .bubble {
 }
 #msgInput {
   flex: 1;
-  background: transparent;
+    background: transparent;
   border: none;
   color: var(--text);
   font-size: 15px;
@@ -841,7 +878,7 @@ html[data-anim="premium"] .msg-row.them .bubble {
   font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
-  margin-top: 10px;
+    margin-top: 10px;
   transition: transform 0.32s var(--spring), background 0.2s var(--smooth);
 }
 .btn:active { transform: scale(0.955); }
@@ -985,31 +1022,24 @@ html[data-anim="premium"] .msg-row.them .bubble {
 </div>
 
 <div id="app">
+  <!-- GOOGLE SIGN-IN SCREEN -->
   <section id="authScreen" class="screen">
     <div class="lg-card">
       <div class="brand">VibeChat</div>
-      <p class="sub">AMOLED liquid glass messaging with number verification, stealth hidden vault, chat lock, and calls.</p>
+      <p class="sub">Sign in with your Google / Gmail account. Your chats, contacts, profile, and settings stay synced across your app and website forever.</p>
 
-      <label class="field-lbl">Your Name</label>
-      <input class="field-inp" id="authName" maxlength="24" placeholder="Enter your name">
+      <button class="google-btn" id="googleSignInBtn" onclick="signInWithGoogle()">
+        <span class="g-badge">G</span>
+        <span>Continue with Google</span>
+      </button>
 
-      <label class="field-lbl">Mobile Number (+91)</label>
-      <div style="display:flex; gap:8px;">
-        <div class="field-inp" style="width:62px; text-align:center; color:var(--v-100); font-weight:700;">+91</div>
-        <input class="field-inp" id="authPhone" type="tel" maxlength="10" placeholder="10-digit number">
-      </div>
-
-      <button class="btn btn-primary" onclick="sendOtp()">Send OTP</button>
-
-      <div id="otpBox" style="display:none; margin-top:12px; padding:11px 12px; border-radius:14px; background:rgba(139,92,246,0.14); border:1px dashed var(--v-300);">
-        <div style="font-size:12px; color:var(--soft);">Verification OTP:</div>
-        <div id="otpCode" style="font-size:19px; font-weight:800; letter-spacing:4px; color:var(--v-100); margin-top:2px;"></div>
-        <input class="field-inp" id="otpInput" type="tel" maxlength="6" style="margin-top:8px;" placeholder="Enter 6-digit OTP">
-        <button class="btn btn-primary" onclick="verifyLogin()">Verify & Continue</button>
+      <div id="authStatusMsg" style="margin-top:14px; font-size:12px; color:var(--soft); text-align:center;">
+        Instant cloud sync â€¢ Hidden Vault â€¢ Chat Lock â€¢ Calls
       </div>
     </div>
   </section>
 
+  <!-- HOME SCREEN -->
   <section id="homeScreen" class="screen hidden">
     <div class="header">
       <div class="brand" style="font-size:21px;">VibeChat</div>
@@ -1018,8 +1048,8 @@ html[data-anim="premium"] .msg-row.them .bubble {
         <span id="connLbl">Connecting</span>
       </div>
       <div class="spacer"></div>
-      <button class="icon-btn" id="profileBtn" onclick="openProfileModal()" title="Profile & DP">👤</button>
-      <button class="icon-btn" onclick="openSettingsModal()" title="Settings">⚙️</button>
+      <button class="icon-btn" id="profileBtn" onclick="openProfileModal()" title="Profile & DP">ðŸ‘¤</button>
+      <button class="icon-btn" onclick="openSettingsModal()" title="Settings">âš™ï¸</button>
     </div>
 
     <div class="tabs-wrap">
@@ -1031,32 +1061,33 @@ html[data-anim="premium"] .msg-row.them .bubble {
     </div>
 
     <div class="search-wrap" id="searchWrap">
-      <input class="search-input" id="searchInp" type="text" placeholder="Search name or number..." oninput="renderChats()">
+      <input class="search-input" id="searchInp" type="text" placeholder="Search name or Gmail..." oninput="renderChats()">
     </div>
 
     <div class="scroll-list" id="chatList"></div>
     <div class="scroll-list" id="callList" style="display:none"></div>
 
-    <button class="fab" onclick="openAddContactModal()" title="Add Number">＋</button>
+    <button class="fab" onclick="openAddContactModal()" title="New Chat by Gmail">ï¼‹</button>
   </section>
 
+  <!-- CHAT SCREEN -->
   <section id="chatScreen" class="screen hidden">
     <div class="header">
       <button class="icon-btn" onclick="closeChat()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
-      <div class="avatar sm" id="chatAv">👤<span class="ring"></span></div>
+      <div class="avatar sm" id="chatAv">ðŸ‘¤<span class="ring"></span></div>
       <div style="flex:1; min-width:0; cursor:pointer;" onclick="openChatSettingsModal()">
         <div id="chatTitle" style="font-size:15.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Chat</div>
-        <div id="chatSub" style="font-size:11.5px; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">+91 ...</div>
+        <div id="chatSub" style="font-size:11.5px; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">user@gmail.com</div>
       </div>
-      <button class="icon-btn" onclick="startCall('video')" title="Video Call">📹</button>
-      <button class="icon-btn" onclick="startCall('audio')" title="Voice Call">📞</button>
-      <button class="icon-btn" onclick="openChatSettingsModal()" title="Chat Options">⋮</button>
+      <button class="icon-btn" onclick="startCall('video')" title="Video Call">ðŸ“¹</button>
+      <button class="icon-btn" onclick="startCall('audio')" title="Voice Call">ðŸ“ž</button>
+      <button class="icon-btn" onclick="openChatSettingsModal()" title="Chat Options">â‹®</button>
     </div>
 
     <div class="pinned-bar" id="pinnedBar" onclick="showPinnedToast()">
-      <span>📌</span>
+      <span>ðŸ“Œ</span>
       <div class="pinned-text" id="pinnedText"></div>
       <span style="font-size:11px; color:var(--v-200);" onclick="event.stopPropagation(); unpinMessage()">Unpin</span>
     </div>
@@ -1065,7 +1096,7 @@ html[data-anim="premium"] .msg-row.them .bubble {
       <div class="msg-wrap" id="msgWrap" onscroll="onMsgScroll()">
         <div class="msg-inner" id="msgInner"></div>
       </div>
-      <button class="down-btn" id="downBtn" onclick="scrollBottom(true)">↓</button>
+      <button class="down-btn" id="downBtn" onclick="scrollBottom(true)">â†“</button>
     </div>
 
     <div class="typing-bar" id="typingBar">
@@ -1077,7 +1108,7 @@ html[data-anim="premium"] .msg-row.them .bubble {
         <div id="replyWho" style="font-size:11px; font-weight:700; color:var(--v-100);"></div>
         <div id="replyPreview" style="font-size:12.5px; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
       </div>
-      <button class="icon-btn" style="width:28px;height:28px;" onclick="cancelReply()">✕</button>
+      <button class="icon-btn" style="width:28px;height:28px;" onclick="cancelReply()">âœ•</button>
     </div>
 
     <div class="sub-strip" id="emojiStrip" style="overflow-x:auto;"></div>
@@ -1085,103 +1116,112 @@ html[data-anim="premium"] .msg-row.them .bubble {
     <div class="composer">
       <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhoto(event)">
       <div class="input-shell">
-        <button class="icon-btn" style="width:30px;height:30px;background:none;border:none;box-shadow:none;" onclick="toggleEmojiStrip()">😊</button>
+        <button class="icon-btn" style="width:30px;height:30px;background:none;border:none;box-shadow:none;" onclick="toggleEmojiStrip()">ðŸ˜Š</button>
         <textarea id="msgInput" rows="1" placeholder="Message..." oninput="onTyping()" onkeydown="onKeySend(event)"></textarea>
-        <button class="icon-btn" style="width:32px;height:32px;background:none;border:none;box-shadow:none;" onclick="document.getElementById('photoInput').click()">📷</button>
-        <button class="icon-btn" id="micBtn" style="width:32px;height:32px;background:none;border:none;box-shadow:none;" onclick="toggleVoiceRecord()">🎙️</button>
+        <button class="icon-btn" style="width:32px;height:32px;background:none;border:none;box-shadow:none;" onclick="document.getElementById('photoInput').click()">ðŸ“·</button>
+        <button class="icon-btn" id="micBtn" style="width:32px;height:32px;background:none;border:none;box-shadow:none;" onclick="toggleVoiceRecord()">ðŸŽ™ï¸</button>
       </div>
-      <button class="send-btn" onclick="sendText()">➤</button>
+      <button class="send-btn" onclick="sendText()">âž¤</button>
     </div>
   </section>
 </div>
 
+<!-- SETTINGS MODAL -->
 <div class="modal-bg" id="settingsModal" onclick="if(event.target===this) closeModal('settingsModal')">
   <div class="modal-box">
-    <h3>⚙️ Settings</h3>
-    <p class="sub">Account, sound, animations, and privacy.</p>
-    <button class="btn btn-soft" onclick="closeModal('settingsModal'); openProfileModal()">👤 Edit Profile & DP</button>
-    <button class="btn btn-soft" id="soundSettingBtn" onclick="toggleSound()">🔔 Notification Sound: ON</button>
-    <button class="btn btn-soft" onclick="closeModal('settingsModal'); openAnimModal()">✨ Animation Mode</button>
-    <button class="btn btn-primary" onclick="closeModal('settingsModal'); openPrivacyModal()">🛡️ Password & Privacy</button>
+    <h3>âš™ï¸ Settings</h3>
+    <p class="sub" id="settingsEmailLbl">Synced with Google Cloud</p>
+    <button class="btn btn-soft" onclick="closeModal('settingsModal'); openProfileModal()">ðŸ‘¤ Edit Profile & DP</button>
+    <button class="btn btn-soft" id="soundSettingBtn" onclick="toggleSound()">ðŸ”” Notification Sound: ON</button>
+    <button class="btn btn-soft" onclick="closeModal('settingsModal'); openAnimModal()">âœ¨ Animation Mode</button>
+    <button class="btn btn-primary" onclick="closeModal('settingsModal'); openPrivacyModal()">ðŸ›¡ï¸ Password & Privacy</button>
+    <button class="btn btn-soft" onclick="syncFromCloud(true)">â˜ï¸ Sync Cloud Now</button>
+    <button class="btn btn-ghost" style="color:var(--v-200);" onclick="signOutGoogle()">ðŸšª Sign Out</button>
     <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Close</button>
   </div>
 </div>
 
+<!-- ANIMATION MODAL -->
 <div class="modal-bg" id="animModal" onclick="if(event.target===this) closeModal('animModal')">
   <div class="modal-box">
-    <h3>✨ Animation Settings</h3>
+    <h3>âœ¨ Animation Settings</h3>
     <p class="sub">Choose animation intensity for smooth speed on your phone.</p>
-    <button class="btn btn-soft" id="animOffBtn" onclick="setAnimMode('off')">Off — Instant & fast</button>
-    <button class="btn btn-soft" id="animLiteBtn" onclick="setAnimMode('lite')">Lite — Smooth basic transitions</button>
-    <button class="btn btn-soft" id="animPremiumBtn" onclick="setAnimMode('premium')">Premium — Full liquid glass & motion</button>
+    <button class="btn btn-soft" id="animOffBtn" onclick="setAnimMode('off')">Off â€” Instant & fast</button>
+    <button class="btn btn-soft" id="animLiteBtn" onclick="setAnimMode('lite')">Lite â€” Smooth basic transitions</button>
+    <button class="btn btn-soft" id="animPremiumBtn" onclick="setAnimMode('premium')">Premium â€” Full liquid glass & motion</button>
     <button class="btn btn-ghost" onclick="closeModal('animModal')">Close</button>
   </div>
 </div>
 
+<!-- PRIVACY MODAL -->
 <div class="modal-bg" id="privacyModal" onclick="if(event.target===this) closeModal('privacyModal')">
   <div class="modal-box">
-    <h3>🛡️ Password & Privacy</h3>
-    <p class="sub">Set a passcode for Chat Lock & Hidden Vault, or enable Face / Fingerprint unlock.</p>
+    <h3>ðŸ›¡ï¸ Password & Privacy</h3>
+    <p class="sub">Passcode syncs across your devices via your Google account.</p>
     <label class="field-lbl">App Lock Passcode (min 4 chars)</label>
     <input class="field-inp" id="setupPinInput" type="password" maxlength="16" placeholder="Enter passcode">
     <button class="btn btn-primary" onclick="savePasscode()">Save Passcode</button>
-    <button class="btn btn-soft" onclick="registerBiometric()">✨ Face / Fingerprint Unlock</button>
+    <button class="btn btn-soft" onclick="registerBiometric()">âœ¨ Face / Fingerprint Unlock</button>
     <button class="btn btn-ghost" onclick="closeModal('privacyModal')">Close</button>
   </div>
 </div>
 
+<!-- LOCK PROMPT MODAL -->
 <div class="modal-bg" id="lockPromptModal">
   <div class="modal-box">
-    <h3 id="lockPromptTitle">🔒 Verification</h3>
+    <h3 id="lockPromptTitle">ðŸ”’ Verification</h3>
     <p class="sub" id="lockPromptSub">Enter passcode or verify with Face / Fingerprint.</p>
     <input class="field-inp" id="lockPinInput" type="password" maxlength="16" placeholder="Enter passcode">
     <button class="btn btn-primary" onclick="submitLockPin()">Unlock with Passcode</button>
-    <button class="btn btn-soft" onclick="tryBiometricUnlock()">✨ Face / Fingerprint</button>
+    <button class="btn btn-soft" onclick="tryBiometricUnlock()">âœ¨ Face / Fingerprint</button>
     <button class="btn btn-ghost" onclick="cancelLockPrompt()">Cancel</button>
   </div>
 </div>
 
+<!-- ADD CONTACT BY GMAIL MODAL -->
 <div class="modal-bg" id="addContactModal" onclick="if(event.target===this) closeModal('addContactModal')">
   <div class="modal-box">
-    <h3>New Chat by Number</h3>
-    <p class="sub">Check if a number is active on VibeChat or invite on WhatsApp.</p>
+    <h3>New Chat by Gmail</h3>
+    <p class="sub">Check if a friend's Gmail is signed in on VibeChat or invite them.</p>
     <label class="field-lbl">Name (Optional)</label>
-    <input class="field-inp" id="newName" maxlength="24" placeholder="Friend name">
-    <label class="field-lbl">Mobile Number (+91)</label>
-    <input class="field-inp" id="newPhone" type="tel" maxlength="10" placeholder="10-digit number">
-    <button class="btn btn-primary" onclick="checkNumber()">Check Number</button>
+    <input class="field-inp" id="newName" maxlength="28" placeholder="Friend name">
+    <label class="field-lbl">Friend's Gmail Address</label>
+    <input class="field-inp" id="newEmail" type="email" placeholder="friend@gmail.com">
+    <button class="btn btn-primary" onclick="checkGmailUser()">Check Gmail</button>
     <div id="lookupResult" style="display:none; margin-top:12px; padding:12px; border-radius:16px; background:rgba(139,92,246,0.12); border:1px solid var(--lg-border); box-shadow:var(--lg-highlight);">
       <div id="lookupStatus" style="font-size:13px; font-weight:700; color:var(--v-100); margin-bottom:6px;"></div>
       <div id="lookupDetail" style="font-size:12.5px; color:var(--soft); margin-bottom:10px;"></div>
       <button class="btn btn-primary" id="btnStartChat" style="display:none;" onclick="startCheckedChat()">Start Chat</button>
-      <button class="btn btn-soft" id="btnInviteWa" style="display:none;" onclick="sendWaInvite()">Invite on WhatsApp</button>
+      <button class="btn btn-soft" id="btnInviteWa" style="display:none;" onclick="sendWaInvite()">Share Invite Link</button>
     </div>
     <button class="btn btn-ghost" onclick="closeModal('addContactModal')">Cancel</button>
   </div>
 </div>
 
+<!-- PROFILE MODAL -->
 <div class="modal-bg" id="profileModal" onclick="if(event.target===this) closeModal('profileModal')">
   <div class="modal-box">
     <h3>My Profile</h3>
-    <p class="sub" id="profilePhoneLbl">+91 ...</p>
+    <p class="sub" id="profileEmailLbl">Google Account</p>
     <input type="file" id="dpFile" accept="image/*" style="display:none" onchange="handleDp(event)">
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
-      <div class="avatar" id="dpBox">👤</div>
+      <div class="avatar" id="dpBox">ðŸ‘¤</div>
       <button class="btn btn-soft" style="margin-top:0; width:auto;" onclick="document.getElementById('dpFile').click()">Upload DP</button>
     </div>
-    <label class="field-lbl">Name</label>
-    <input class="field-inp" id="profileNameInp" maxlength="24">
-    <button class="btn btn-primary" onclick="saveProfile()">Save</button>
+    <label class="field-lbl">Display Name</label>
+    <input class="field-inp" id="profileNameInp" maxlength="28">
+    <button class="btn btn-primary" onclick="saveProfile()">Save & Sync</button>
     <button class="btn btn-ghost" onclick="closeModal('profileModal')">Close</button>
   </div>
 </div>
 
+<!-- CHAT OPTIONS MODAL -->
 <div class="modal-bg" id="chatOptModal" onclick="if(event.target===this) closeModal('chatOptModal')">
   <div class="modal-box">
     <h3 id="optTitle">Chat Options</h3>
-    <p class="sub" id="optPhone">+91 ...</p>
-    <button class="btn btn-soft" id="toggleLockBtn" onclick="toggleLockCurrentChat()">🔒 Lock Chat</button>
-    <button class="btn btn-soft" id="toggleHideBtn" onclick="requestHideCurrentChat()">👁️ Hide Chat</button>
+    <p class="sub" id="optEmail">user@gmail.com</p>
+    <button class="btn btn-soft" id="toggleLockBtn" onclick="toggleLockCurrentChat()">ðŸ”’ Lock Chat</button>
+    <button class="btn btn-soft" id="toggleHideBtn" onclick="requestHideCurrentChat()">ðŸ‘ï¸ Hide Chat</button>
     <label class="field-lbl">Disappearing Messages</label>
     <select class="field-inp" id="timerSelect" onchange="changeDisappearTimer(this.value)">
       <option value="0">Off</option>
@@ -1194,28 +1234,30 @@ html[data-anim="premium"] .msg-row.them .bubble {
   </div>
 </div>
 
+<!-- MESSAGE ACTION SHEET -->
 <div class="sheet" id="msgSheet" onclick="if(event.target===this) closeMsgSheet()">
   <div class="sheet-card">
     <div style="display:flex; justify-content:space-around; padding-bottom:10px; border-bottom:1px solid var(--lg-border); margin-bottom:6px;">
-      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('💜')">💜</button>
-      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('😂')">😂</button>
-      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('🔥')">🔥</button>
-      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('👍')">👍</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('ðŸ’œ')">ðŸ’œ</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('ðŸ˜‚')">ðŸ˜‚</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('ðŸ”¥')">ðŸ”¥</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('ðŸ‘')">ðŸ‘</button>
     </div>
-    <button class="sheet-item" onclick="replySelected()">↩️ Reply</button>
-    <button class="sheet-item" onclick="pinSelected()">📌 Pin Message</button>
-    <button class="sheet-item" onclick="editSelected()">✏️ Edit Message</button>
-    <button class="sheet-item" onclick="copySelected()">📋 Copy Text</button>
-    <button class="sheet-item" style="color:var(--v-200);" onclick="unsendSelected()">🗑️ Unsend for Both</button>
+    <button class="sheet-item" onclick="replySelected()">â†©ï¸ Reply</button>
+    <button class="sheet-item" onclick="pinSelected()">ðŸ“Œ Pin Message</button>
+    <button class="sheet-item" onclick="editSelected()">âœï¸ Edit Message</button>
+    <button class="sheet-item" onclick="copySelected()">ðŸ“‹ Copy Text</button>
+    <button class="sheet-item" style="color:var(--v-200);" onclick="unsendSelected()">ðŸ—‘ï¸ Unsend for Both</button>
   </div>
 </div>
 
+<!-- CALL OVERLAY -->
 <div class="call-overlay" id="callOverlay">
   <video class="remote-vid" id="remoteVid" autoplay playsinline></video>
   <video class="local-vid" id="localVid" autoplay muted playsinline></video>
   <audio id="remoteAud" autoplay></audio>
   <div class="call-center" id="callCenter">
-    <div class="call-big-av" id="callAv">👤</div>
+    <div class="call-big-av" id="callAv">ðŸ‘¤</div>
     <div id="callName" style="font-size:22px; font-weight:800;">Contact</div>
     <div id="callStatus" style="font-size:13px; color:var(--v-100); margin-top:4px;">Connecting...</div>
   </div>
@@ -1229,82 +1271,137 @@ html[data-anim="premium"] .msg-row.them .bubble {
 <div class="toast" id="toast"></div>
 
 <script>
-const STORAGE_KEY = 'vibechat_final_v1';
-const DOWNLOAD_URL = 'https://m-elements.github.io/vibechat-download/';
+// ============================================================
+// 1. PASTE YOUR FIREBASE CONFIG HERE (FROM FIREBASE CONSOLE)
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyA00FjpW8l6SoR2bEjfFmduqPDu3RDjC5c",
+  authDomain: "vibechat-ce548.firebaseapp.com",
+  projectId: "vibechat-ce548",
+  storageBucket: "vibechat-ce548.firebasestorage.app",
+  messagingSenderId: "145764761060",
+  appId: "1:145764761060:web:e993df746bc3f24d621bf1",
+  measurementId: "G-YNPSQ6ST9P"
+};
+
+const STORAGE_KEY = 'vibechat_google_cloud_v1';
+const APP_URL = 'https://m-elements.github.io/vibechat/';
 const BROKERS = [
   'wss://broker.emqx.io:8084/mqtt',
   'wss://broker.hivemq.com:8884/mqtt',
   'wss://test.mosquitto.org:8081/mqtt'
 ];
-const EMOJIS = ['💜','😂','🔥','✨','👍','😭','🙏','👀','💯','🫶'];
+const EMOJIS = ['ðŸ’œ','ðŸ˜‚','ðŸ”¥','âœ¨','ðŸ‘','ðŸ˜­','ðŸ™','ðŸ‘€','ðŸ’¯','ðŸ«¶'];
+
+let fbAuth = null;
+let fbDb = null;
+let fbReady = false;
+let cloudSyncTimer = null;
+let unsubCloudMsgs = null;
 
 let state = loadState();
 let mqttClient = null;
 let brokerIdx = 0;
 let isConnected = false;
-let currentPeer = null;
+let currentPeer = null; // normalized lowercase Gmail
 let activeTab = 'chats';
 let inHiddenVault = false;
 let unlockedSessionPeers = {};
 let pendingLockAction = null;
 let pendingLockCancel = null;
 let chatsHoldTimer = null;
-let generatedOtp = '';
 let checkedContact = null;
 let tempDp = '';
 let activeReply = null;
-let selectedMsgId = null;
-let typingTimers = {};
-let lastTyping = 0;
-let onlineMap = {};
-
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecordingVoice = false;
-
-let peer = null;
-let peerReady = false;
-let activeCall = null;
-let localStream = null;
-let callType = 'audio';
-let callPeer = '';
-let callMuted = false;
-let callSec = 0;
-let callTimer = null;
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p && p.user) {
-        p.contacts = p.contacts || [];
-        p.messages = p.messages || {};
-        p.outbox = p.outbox || [];
-        p.calls = p.calls || [];
-        p.security = p.security || { pin: '', bioEnabled: false };
-        if (typeof p.sound !== 'boolean') p.sound = true;
-        if (!p.animMode) p.animMode = 'premium';
-        return p;
+        state.user.dp = data.user.dp || state.user.dp;
       }
+      if (typeof data.sound === 'boolean') state.sound = data.sound;
+      if (data.animMode) state.animMode = data.animMode;
+      if (data.security) state.security = data.security;
+
+      // Merge contacts
+      const cloudContacts = data.contacts || [];
+      for (const cc of cloudContacts) {
+        const em = cleanEmail(cc.email || cc.phone);
+        if (!em) continue;
+        const local = getContact(em);
+        if (!local) {
+          state.contacts.push({ ...cc, email: em, phone: em });
+        } else {
+          if ((cc.lastTs || 0) > (local.lastTs || 0)) {
+            local.lastTs = cc.lastTs;
+            local.lastText = cc.lastText;
+          }
+          local.name = cc.name || local.name;
+          local.dp = cc.dp || local.dp;
+          local.locked = !!cc.locked;
+          local.hidden = !!cc.hidden;
+          local.disappearSec = cc.disappearSec || 0;
+          local.pinnedId = cc.pinnedId || local.pinnedId;
+        }
+      }
+
+      // Merge messages by ID
+      const cloudMsgs = data.messages || {};
+      for (const peerEm in cloudMsgs) {
+        const em = cleanEmail(peerEm);
+        state.messages[em] = state.messages[em] || [];
+        const existingIds = new Set(state.messages[em].map(m => m.id));
+        for (const m of (cloudMsgs[peerEm] || [])) {
+          if (!existingIds.has(m.id)) state.messages[em].push(m);
+        }
+        state.messages[em].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      }
+
+      if (Array.isArray(data.calls) && data.calls.length > state.calls.length) {
+        state.calls = data.calls;
+      }
+
+      applyAnimMode(state.animMode);
+      renderProfileIcon();
+      updateSoundLabel();
+      renderChats();
+      if (currentPeer) renderMsgs(false);
+      saveState(true);
+      if (manualToast) toast('Cloud data restored');
+    } else {
+      await pushCloudBackup();
     }
-  } catch (e) {}
-  return {
-    user: { phone: '', name: '', dp: '' },
-    sound: true,
-    animMode: 'premium',
-    contacts: [],
-    messages: {},
-    outbox: [],
-    calls: [],
-    security: { pin: '', bioEnabled: false }
-  };
+  } catch (e) {
+    if (manualToast) toast('Cloud sync failed');
+  }
 }
 
-function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+function subscribeCloudInbox() {
+  if (!fbReady || !fbDb || !state.user.email) return;
+  if (unsubCloudMsgs) { try { unsubCloudMsgs(); } catch (e) {} }
+  const myDoc = emailKey(state.user.email);
+  unsubCloudMsgs = fbDb.collection('vc_inbox').doc(myDoc).collection('packets')
+    .orderBy('ts', 'asc')
+    .limitToLast(40)
+    .onSnapshot(snap => {
+      snap.docChanges().forEach(chg => {
+        if (chg.type === 'added') {
+          const d = chg.doc.data();
+          if (d && d.from && d.pkt) {
+            onDirectPacket(cleanEmail(d.from), d.pkt);
+            chg.doc.ref.delete().catch(() => {});
+          }
+        }
+      });
+    }, () => {});
 }
 
+async function signOutGoogle() {
+  if (unsubCloudMsgs) { try { unsubCloudMsgs(); } catch (e) {} }
+  if (fbAuth) { try { await fbAuth.signOut(); } catch (e) {} }
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+// ============================================================
+// 3. UI & ANIMATION CONTROLS
+// ============================================================
 function applyAnimMode(mode) {
   const m = ['off', 'lite', 'premium'].includes(mode) ? mode : 'premium';
   state.animMode = m;
@@ -1324,27 +1421,6 @@ function openAnimModal() {
 function setAnimMode(m) {
   applyAnimMode(m);
   toast('Animation mode: ' + m.toUpperCase());
-}
-
-function cleanPhone(v) {
-  let d = (v || '').replace(/\D/g, '');
-  if (d.length > 10) d = d.slice(-10);
-  return d;
-}
-function fmtPhone(ph) {
-  const d = cleanPhone(ph);
-  return d.length === 10 ? '+91 ' + d.slice(0, 5) + ' ' + d.slice(5) : '+91 ' + d;
-}
-function esc(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function fmtTime(ts) {
-  if (!ts) return '';
-  const d = new Date(ts);
-  let h = d.getHours(), m = d.getMinutes();
-  const ap = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return h + ':' + (m < 10 ? '0' + m : m) + ' ' + ap;
 }
 
 function positionGlassSlider(tabId) {
@@ -1399,10 +1475,10 @@ function hash32(str) {
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
 }
-function inboxTopic(ph) { return 'vc_fin_in_v1/' + hash32('in_' + cleanPhone(ph)); }
-function dirTopic(ph) { return 'vc_fin_dir_v1/' + hash32('dir_' + cleanPhone(ph)); }
+function inboxTopic(em) { return 'vc_gm_in_v1/' + emailKey(em); }
+function dirTopic(em) { return 'vc_gm_dir_v1/' + emailKey(em); }
 function pairSecret(a, b) {
-  const s = [cleanPhone(a), cleanPhone(b)].sort();
+  const s = [cleanEmail(a), cleanEmail(b)].sort();
   return hash32('s1_' + s[0] + '_' + s[1]) + hash32('s2_' + s[1] + '_' + s[0]);
 }
 function encPacket(obj, a, b) {
@@ -1424,26 +1500,6 @@ function decPacket(b64, a, b) {
   } catch (e) { return null; }
 }
 
-function sendOtp() {
-  const name = document.getElementById('authName').value.trim();
-  const ph = cleanPhone(document.getElementById('authPhone').value);
-  if (!name) { toast('Enter your name'); return; }
-  if (!/^[6-9]\d{9}$/.test(ph)) { toast('Enter valid 10-digit number'); return; }
-  generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
-  document.getElementById('otpCode').textContent = generatedOtp;
-  document.getElementById('otpInput').value = generatedOtp;
-  document.getElementById('otpBox').style.display = 'block';
-}
-
-function verifyLogin() {
-  const name = document.getElementById('authName').value.trim();
-  const ph = cleanPhone(document.getElementById('authPhone').value);
-  if (document.getElementById('otpInput').value.trim() !== generatedOtp) { toast('Invalid OTP'); return; }
-  state.user = { phone: ph, name, dp: state.user.dp || '' };
-  saveState();
-  enterApp();
-}
-
 function enterApp() {
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('homeScreen').classList.remove('hidden');
@@ -1457,6 +1513,7 @@ function enterApp() {
 
 function openSettingsModal() {
   updateSoundLabel();
+  document.getElementById('settingsEmailLbl').textContent = 'Synced: ' + (state.user.email || '');
   document.getElementById('settingsModal').classList.add('show');
 }
 
@@ -1469,7 +1526,7 @@ function toggleSound() {
 
 function updateSoundLabel() {
   const btn = document.getElementById('soundSettingBtn');
-  if (btn) btn.textContent = state.sound ? '🔔 Notification Sound: ON' : '🔕 Notification Sound: OFF';
+  if (btn) btn.textContent = state.sound ? 'ðŸ”” Notification Sound: ON' : 'ðŸ”• Notification Sound: OFF';
 }
 
 function openPrivacyModal() {
@@ -1483,7 +1540,7 @@ function savePasscode() {
   state.security.pin = pin;
   saveState();
   closeModal('privacyModal');
-  toast('Passcode saved');
+  toast('Passcode saved & synced');
 }
 
 async function registerBiometric() {
@@ -1492,12 +1549,12 @@ async function registerBiometric() {
     try {
       const chal = new Uint8Array(16);
       crypto.getRandomValues(chal);
-      const uid = new TextEncoder().encode(state.user.phone || 'vibechat_user');
+      const uid = new TextEncoder().encode(state.user.email || 'vibechat_user');
       await navigator.credentials.create({
         publicKey: {
           challenge: chal,
           rp: { name: 'VibeChat' },
-          user: { id: uid, name: state.user.phone || 'user', displayName: state.user.name || 'User' },
+          user: { id: uid, name: state.user.email || 'user', displayName: state.user.name || 'User' },
           pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
           authenticatorSelection: { userVerification: 'preferred' },
           timeout: 25000
@@ -1519,7 +1576,7 @@ function requireUnlock(title, sub, onSuccess, onCancel) {
   pendingLockAction = onSuccess;
   pendingLockCancel = onCancel || null;
   document.getElementById('lockPromptTitle').textContent = title;
-  document.getElementById('lockPromptSub').textContent = sub;
+    document.getElementById('lockPromptSub').textContent = sub;
   document.getElementById('lockPinInput').value = '';
   document.getElementById('lockPromptModal').classList.add('show');
 }
@@ -1569,7 +1626,7 @@ function toggleLockCurrentChat() {
   if (!c.locked) {
     if (!state.security.pin) { closeModal('chatOptModal'); openPrivacyModal(); toast('Set a passcode first'); return; }
     c.locked = true;
-    unlockedSessionPeers[c.phone] = true;
+    unlockedSessionPeers[c.email] = true;
     saveState(); updateChatOptUI(c); renderChats(); toast('Chat locked');
   } else {
     requireUnlock('Unlock Chat', 'Enter password or use Face / Fingerprint to remove lock.', () => {
@@ -1605,20 +1662,23 @@ function changeDisappearTimer(val) {
   toast(c.disappearSec ? `Disappearing timer: ${c.disappearSec}s` : 'Disappearing timer off');
 }
 
+// ============================================================
+// 4. REAL-TIME MQTT + CLOUD MESSAGE DELIVERY
+// ============================================================
 function setConn(st, lbl) {
   document.getElementById('connDot').className = 'dot ' + st;
   document.getElementById('connLbl').textContent = lbl;
 }
-function forceReconnect() { brokerIdx++; isConnected = false; connectMqtt(); }
+function forceReconnect() { brokerIdx++; isConnected = false; connectMqtt(); syncFromCloud(true); }
 
 function connectMqtt() {
-  if (!state.user.phone || (isConnected && mqttClient)) return;
+  if (!state.user.email || (isConnected && mqttClient)) return;
   if (typeof mqtt === 'undefined') { setConn('offline', 'Offline'); setTimeout(connectMqtt, 3000); return; }
   if (mqttClient) { try { mqttClient.end(true); } catch (e) {} }
 
   setConn('', 'Connecting');
   mqttClient = mqtt.connect(BROKERS[brokerIdx % BROKERS.length], {
-    clientId: 'vcfin_' + state.user.phone + '_' + Math.random().toString(16).slice(2, 6),
+    clientId: 'vcgm_' + emailKey(state.user.email).slice(0, 8) + '_' + Math.random().toString(16).slice(2, 6),
     clean: true, connectTimeout: 8000, reconnectPeriod: 4000, keepalive: 25
   });
 
@@ -1626,7 +1686,7 @@ function connectMqtt() {
 
   mqttClient.on('connect', () => {
     clearTimeout(t); isConnected = true; setConn('online', 'Online');
-    mqttClient.subscribe(inboxTopic(state.user.phone), { qos: 1 });
+    mqttClient.subscribe(inboxTopic(state.user.email), { qos: 1 });
     publishDirectory(); flushQueue(); pingContacts(true);
   });
   mqttClient.on('reconnect', () => { isConnected = false; setConn('', 'Reconnecting'); });
@@ -1635,19 +1695,13 @@ function connectMqtt() {
 
   mqttClient.on('message', (topic, payload) => {
     const raw = payload.toString();
-    if (topic.startsWith('vc_fin_dir_v1/')) {
-      if (window._dirResolve && topic === dirTopic(window._dirPhone)) {
-        try { const info = JSON.parse(raw); if (info && info.phone === window._dirPhone && info.active) window._dirResolve(info); } catch (e) {}
-      }
-      return;
-    }
-    if (topic === inboxTopic(state.user.phone)) {
+    if (topic === inboxTopic(state.user.email)) {
       try {
         const w = JSON.parse(raw);
-        const fromPh = cleanPhone(w.from);
-        if (!fromPh || fromPh === state.user.phone) return;
-        const pkt = decPacket(w.data, fromPh, state.user.phone);
-        if (pkt && pkt.type) onDirectPacket(fromPh, pkt);
+        const fromEm = cleanEmail(w.from);
+        if (!fromEm || fromEm === state.user.email) return;
+        const pkt = decPacket(w.data, fromEm, state.user.email);
+        if (pkt && pkt.type) onDirectPacket(fromEm, pkt);
       } catch (e) {}
     }
   });
@@ -1655,24 +1709,47 @@ function connectMqtt() {
 window.initMqtt = connectMqtt;
 
 function publishDirectory() {
-  if (!mqttClient || !isConnected || !state.user.phone) return;
-  mqttClient.publish(dirTopic(state.user.phone), JSON.stringify({
-    active: true, phone: state.user.phone, name: state.user.name, dp: state.user.dp || ''
-  }), { qos: 1, retain: true });
+  if (!state.user.email) return;
+  if (mqttClient && isConnected) {
+    mqttClient.publish(dirTopic(state.user.email), JSON.stringify({
+      active: true, email: state.user.email, name: state.user.name, dp: state.user.dp || ''
+    }), { qos: 1, retain: true });
+  }
+  if (fbReady && fbDb) {
+    fbDb.collection('vc_users').doc(emailKey(state.user.email)).set({
+      uid: state.user.uid, email: state.user.email, name: state.user.name, dp: state.user.dp || '', updatedAt: Date.now()
+    }, { merge: true }).catch(() => {});
+  }
 }
 
-function sendDirect(peerPh, pkt) {
-  if (!mqttClient || !isConnected) return false;
-  const target = cleanPhone(peerPh);
-  try {
-    const enc = encPacket(pkt, state.user.phone, target);
-    mqttClient.publish(inboxTopic(target), JSON.stringify({ from: state.user.phone, data: enc }), { qos: 1 });
-    return true;
-  } catch (e) { return false; }
+function sendDirect(peerEm, pkt) {
+  const target = cleanEmail(peerEm);
+  if (!target) return false;
+  let sent = false;
+
+  // 1. Instant MQTT delivery when peer is online
+  if (mqttClient && isConnected) {
+    try {
+      const enc = encPacket(pkt, state.user.email, target);
+      mqttClient.publish(inboxTopic(target), JSON.stringify({ from: state.user.email, data: enc }), { qos: 1 });
+      sent = true;
+    } catch (e) {}
+  }
+
+  // 2. Cloud Firestore inbox delivery so offline messages arrive even months later
+  if (fbReady && fbDb && ['msg', 'ack', 'react', 'edit', 'unsend', 'read_all'].includes(pkt.type)) {
+    fbDb.collection('vc_inbox').doc(emailKey(target)).collection('packets').add({
+      from: state.user.email,
+      pkt: pkt,
+      ts: Date.now()
+    }).catch(() => {});
+    sent = true;
+  }
+  return sent;
 }
 
 function flushQueue() {
-  if (!isConnected || !state.outbox.length) return;
+  if (!state.outbox.length) return;
   const rem = [];
   for (const item of state.outbox) {
     if (sendDirect(item.to, item.packet)) {
@@ -1685,44 +1762,46 @@ function flushQueue() {
 }
 
 function pingContacts(hello) {
-  if (!isConnected || !state.user.phone) return;
+  if (!isConnected || !state.user.email) return;
   for (const c of state.contacts) {
-    sendDirect(c.phone, { type: hello ? 'hello' : 'ping', name: state.user.name, dp: state.user.dp || '' });
+    sendDirect(c.email, { type: hello ? 'hello' : 'ping', name: state.user.name, dp: state.user.dp || '' });
   }
 }
 
 setInterval(() => {
   if (isConnected) pingContacts(false);
   const now = Date.now(); let ch = false;
-  for (const ph in onlineMap) { if (now - onlineMap[ph].ts > 22000) { delete onlineMap[ph]; ch = true; } }
+  for (const em in onlineMap) { if (now - onlineMap[em].ts > 22000) { delete onlineMap[em]; ch = true; } }
   if (ch) { renderChats(); if (currentPeer) updateHeaderStatus(); }
   pruneExpiredMessages();
 }, 5000);
 
 function pruneExpiredMessages() {
   const now = Date.now(); let changed = false;
-  for (const ph in state.messages) {
-    const before = state.messages[ph].length;
-    state.messages[ph] = state.messages[ph].filter(m => !m.expiresAt || m.expiresAt > now);
-    if (state.messages[ph].length !== before) changed = true;
+  for (const em in state.messages) {
+    const before = state.messages[em].length;
+    state.messages[em] = state.messages[em].filter(m => !m.expiresAt || m.expiresAt > now);
+    if (state.messages[em].length !== before) changed = true;
   }
   if (changed) { saveState(); if (currentPeer) renderMsgs(false); }
 }
 
+// ============================================================
+// 5. GMAIL DIRECTORY LOOKUP & CONTACTS
+// ============================================================
 function openAddContactModal() {
   document.getElementById('newName').value = '';
-  document.getElementById('newPhone').value = '';
+  document.getElementById('newEmail').value = '';
   document.getElementById('lookupResult').style.display = 'none';
   checkedContact = null;
   document.getElementById('addContactModal').classList.add('show');
 }
 
-function checkNumber() {
+async function checkGmailUser() {
   const nm = document.getElementById('newName').value.trim();
-  const ph = cleanPhone(document.getElementById('newPhone').value);
-  if (!/^[6-9]\d{9}$/.test(ph)) { toast('Enter valid 10-digit number'); return; }
-  if (ph === state.user.phone) { toast('That is your own number'); return; }
-  if (!mqttClient || !isConnected) { toast('Waiting for Online connection'); return; }
+  const em = cleanEmail(document.getElementById('newEmail').value);
+  if (!em || !em.includes('@')) { toast('Enter a valid Gmail address'); return; }
+  if (em === state.user.email) { toast('That is your own Gmail'); return; }
 
   const resBox = document.getElementById('lookupResult');
   const stEl = document.getElementById('lookupStatus');
@@ -1731,114 +1810,118 @@ function checkNumber() {
   const bInv = document.getElementById('btnInviteWa');
 
   resBox.style.display = 'block';
-  stEl.textContent = 'Checking number...';
-  dtEl.textContent = fmtPhone(ph);
+  stEl.textContent = 'Checking Gmail account...';
+  dtEl.textContent = em;
   bChat.style.display = 'none'; bInv.style.display = 'none';
 
-  const topic = dirTopic(ph); let done = false;
-  const finish = (info) => {
-    if (done) return; done = true;
-    window._dirResolve = null; window._dirPhone = '';
-    try { mqttClient.unsubscribe(topic); } catch (e) {}
-    if (info && info.active) {
-      checkedContact = { phone: ph, name: nm || info.name || fmtPhone(ph), dp: info.dp || '' };
-      stEl.textContent = '● This number is active on VibeChat';
-      dtEl.textContent = `${checkedContact.name} (${fmtPhone(ph)}) is signed in.`;
-      bChat.style.display = 'block';
-    } else {
-      checkedContact = { phone: ph, name: nm || fmtPhone(ph), dp: '' };
-      stEl.textContent = '○ Number not signed in on VibeChat';
-      dtEl.textContent = `${fmtPhone(ph)} is not active yet. Send an invite.`;
-      bInv.style.display = 'block';
-    }
-  };
-  window._dirPhone = ph; window._dirResolve = finish;
-  mqttClient.subscribe(topic, { qos: 1 });
-  setTimeout(() => finish(null), 2600);
+  let found = null;
+  if (fbReady && fbDb) {
+    try {
+      const doc = await fbDb.collection('vc_users').doc(emailKey(em)).get();
+      if (doc.exists) found = doc.data();
+    } catch (e) {}
+  }
+
+  if (found && found.email) {
+    checkedContact = { email: em, name: nm || found.name || em.split('@')[0], dp: found.dp || '' };
+    stEl.textContent = 'â— Active on VibeChat';
+    dtEl.textContent = `${checkedContact.name} (${em}) is registered.`;
+    bChat.style.display = 'block';
+  } else {
+    checkedContact = { email: em, name: nm || em.split('@')[0], dp: '' };
+    stEl.textContent = 'â—‹ Gmail not signed in yet';
+    dtEl.textContent = `${em} has not signed in to VibeChat yet. Share the link so they can sign in with Google.`;
+    bInv.style.display = 'block';
+  }
 }
 
 function startCheckedChat() {
   if (!checkedContact) return;
-  const c = ensureContact(checkedContact.phone, checkedContact.name, checkedContact.dp);
-  saveState(); closeModal('addContactModal'); renderChats(); openChat(c.phone);
+  const c = ensureContact(checkedContact.email, checkedContact.name, checkedContact.dp);
+  saveState(); closeModal('addContactModal'); renderChats(); openChat(c.email);
 }
 
 function sendWaInvite() {
-  const ph = checkedContact ? checkedContact.phone : '';
-  const msg = `Join me on VibeChat (${fmtPhone(state.user.phone)}): ${DOWNLOAD_URL}`;
-  if (ph) window.open('https://wa.me/91' + ph + '?text=' + encodeURIComponent(msg), '_blank');
-  else copyText(msg, 'Invite link copied');
+  const msg = `Join me on VibeChat (${state.user.email}) â€” sign in with Google here: ${APP_URL}`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
-function getContact(ph) { return state.contacts.find(x => x.phone === cleanPhone(ph)); }
-function ensureContact(ph, name, dp) {
-  const d = cleanPhone(ph);
+function getContact(em) {
+  const d = cleanEmail(em);
+  return state.contacts.find(x => cleanEmail(x.email || x.phone) === d);
+}
+function ensureContact(em, name, dp) {
+  const d = cleanEmail(em);
   let c = getContact(d);
   if (!c) {
-    c = { phone: d, name: name || fmtPhone(d), dp: dp || '', locked: false, hidden: false, disappearSec: 0, pinnedId: '', unread: 0, lastTs: Date.now(), lastText: '' };
+    c = { email: d, phone: d, name: name || d.split('@')[0], dp: dp || '', locked: false, hidden: false, disappearSec: 0, pinnedId: '', unread: 0, lastTs: Date.now(), lastText: '' };
     state.contacts.push(c);
   } else {
-    if (name && c.name === fmtPhone(d)) c.name = name;
+    c.email = d; c.phone = d;
+    if (name && c.name === d.split('@')[0]) c.name = name;
     if (dp) c.dp = dp;
   }
   return c;
 }
 
-function onDirectPacket(fromPh, pkt) {
-  const c = ensureContact(fromPh, pkt.name, pkt.dp);
-  onlineMap[fromPh] = { name: c.name, dp: c.dp, ts: Date.now() };
-  saveState();
+// ============================================================
+// 6. MESSAGING, REACTIONS, EDIT, UNSEND & CALLS
+// ============================================================
+function onDirectPacket(fromEm, pkt) {
+  const c = ensureContact(fromEm, pkt.name, pkt.dp);
+  onlineMap[fromEm] = { name: c.name, dp: c.dp, ts: Date.now() };
+  saveState(true);
 
-  if (pkt.type === 'ping') { if (currentPeer === fromPh) updateHeaderStatus(); renderChats(); return; }
-  if (pkt.type === 'hello') { sendDirect(fromPh, { type: 'ping', name: state.user.name, dp: state.user.dp || '' }); if (currentPeer === fromPh) { updateHeaderStatus(); markRead(fromPh); } renderChats(); return; }
-  if (pkt.type === 'typing') { if (currentPeer === fromPh) showTyping(); return; }
-  if (pkt.type === 'read_all') { markRead(fromPh); return; }
+  if (pkt.type === 'ping') { if (currentPeer === fromEm) updateHeaderStatus(); renderChats(); return; }
+  if (pkt.type === 'hello') { sendDirect(fromEm, { type: 'ping', name: state.user.name, dp: state.user.dp || '' }); if (currentPeer === fromEm) { updateHeaderStatus(); markRead(fromEm); } renderChats(); return; }
+  if (pkt.type === 'typing') { if (currentPeer === fromEm) showTyping(); return; }
+  if (pkt.type === 'read_all') { markRead(fromEm); return; }
   if (pkt.type === 'ack' && pkt.msgId) {
-    const m = (state.messages[fromPh] || []).find(x => x.id === pkt.msgId);
-    if (m && m.status !== 'read') { m.status = pkt.read ? 'read' : 'delivered'; saveState(); if (currentPeer === fromPh) renderMsgs(false); }
+    const m = (state.messages[fromEm] || []).find(x => x.id === pkt.msgId);
+    if (m && m.status !== 'read') { m.status = pkt.read ? 'read' : 'delivered'; saveState(); if (currentPeer === fromEm) renderMsgs(false); }
     return;
   }
   if (pkt.type === 'react' && pkt.msgId) {
-    const m = (state.messages[fromPh] || []).find(x => x.id === pkt.msgId);
-    if (m) { m.reactions = m.reactions || {}; m.reactions[fromPh] = pkt.emoji; saveState(); if (currentPeer === fromPh) renderMsgs(false); }
+    const m = (state.messages[fromEm] || []).find(x => x.id === pkt.msgId);
+    if (m) { m.reactions = m.reactions || {}; m.reactions[fromEm] = pkt.emoji; saveState(); if (currentPeer === fromEm) renderMsgs(false); }
     return;
   }
   if (pkt.type === 'edit' && pkt.msgId) {
-    const m = (state.messages[fromPh] || []).find(x => x.id === pkt.msgId);
-    if (m) { m.text = pkt.text; m.edited = true; saveState(); if (currentPeer === fromPh) renderMsgs(false); }
+    const m = (state.messages[fromEm] || []).find(x => x.id === pkt.msgId);
+    if (m) { m.text = pkt.text; m.edited = true; saveState(); if (currentPeer === fromEm) renderMsgs(false); }
     return;
   }
   if (pkt.type === 'unsend' && pkt.msgId) {
-    state.messages[fromPh] = (state.messages[fromPh] || []).filter(x => x.id !== pkt.msgId);
-    saveState(); if (currentPeer === fromPh) renderMsgs(false); renderChats(); return;
+    state.messages[fromEm] = (state.messages[fromEm] || []).filter(x => x.id !== pkt.msgId);
+    saveState(); if (currentPeer === fromEm) renderMsgs(false); renderChats(); return;
   }
-  if (pkt.type === 'call_invite' && pkt.peerId) { onIncomingCall(fromPh, pkt.callType || 'audio', pkt.peerId); return; }
+  if (pkt.type === 'call_invite' && pkt.peerId) { onIncomingCall(fromEm, pkt.callType || 'audio', pkt.peerId); return; }
   if (pkt.type === 'call_end') { endCall(true); return; }
 
   if (pkt.type === 'msg' && pkt.msg) {
     const m = pkt.msg;
-    state.messages[fromPh] = state.messages[fromPh] || [];
-    if (state.messages[fromPh].some(x => x.id === m.id)) return;
+    state.messages[fromEm] = state.messages[fromEm] || [];
+    if (state.messages[fromEm].some(x => x.id === m.id)) return;
     if (c.disappearSec) m.expiresAt = Date.now() + c.disappearSec * 1000;
-    state.messages[fromPh].push(m);
+    state.messages[fromEm].push(m);
     c.lastTs = m.ts;
     c.lastText = m.img ? 'Photo' : (m.audio ? 'Voice message' : m.text);
-    const openNow = (currentPeer === fromPh);
+    const openNow = (currentPeer === fromEm);
     if (!openNow) c.unread = (c.unread || 0) + 1;
     saveState();
-    sendDirect(fromPh, { type: 'ack', name: state.user.name, msgId: m.id, read: openNow });
+    sendDirect(fromEm, { type: 'ack', name: state.user.name, msgId: m.id, read: openNow });
     renderChats();
     if (openNow) { hideTyping(); renderMsgs(false, true); }
     else if (!c.hidden) toast(`${c.name}: ${c.lastText}`);
   }
 }
 
-function markRead(ph) {
+function markRead(em) {
   let ch = false;
-  for (const m of (state.messages[ph] || [])) {
-    if (m.from === state.user.phone && m.status !== 'read') { m.status = 'read'; ch = true; }
+  for (const m of (state.messages[em] || [])) {
+    if (m.from === state.user.email && m.status !== 'read') { m.status = 'read'; ch = true; }
   }
-  if (ch) { saveState(); if (currentPeer === ph) renderMsgs(false); }
+  if (ch) { saveState(); if (currentPeer === em) renderMsgs(false); }
 }
 
 function sendPayloadMsg(opts) {
@@ -1847,11 +1930,11 @@ function sendPayloadMsg(opts) {
   const now = Date.now();
   const msg = {
     id: 'm_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
-    from: state.user.phone, to: currentPeer,
+    from: state.user.email, to: currentPeer,
     text: opts.text || '', img: opts.img || null, audio: opts.audio || null,
     ts: now, expiresAt: c.disappearSec ? now + c.disappearSec * 1000 : 0,
-    replyTo: activeReply ? { id: activeReply.id, who: activeReply.from === state.user.phone ? 'You' : c.name, text: activeReply.img ? 'Photo' : (activeReply.audio ? 'Voice message' : activeReply.text) } : null,
-    reactions: {}, status: isConnected ? 'sent' : 'queued'
+    replyTo: activeReply ? { id: activeReply.id, who: activeReply.from === state.user.email ? 'You' : c.name, text: activeReply.img ? 'Photo' : (activeReply.audio ? 'Voice message' : activeReply.text) } : null,
+    reactions: {}, status: (isConnected || fbReady) ? 'sent' : 'queued'
   };
   state.messages[currentPeer] = state.messages[currentPeer] || [];
   state.messages[currentPeer].push(msg);
@@ -1889,11 +1972,11 @@ function handlePhoto(e) {
   r.onload = ev => {
     const im = new Image();
     im.onload = () => {
-      const max = 600; let w = im.width, h = im.height;
+      const max = 560; let w = im.width, h = im.height;
       if (w > max || h > max) { if (w > h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; } }
       const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(im, 0, 0, w, h);
-      sendPayloadMsg({ img: cv.toDataURL('image/jpeg', 0.65) });
+      sendPayloadMsg({ img: cv.toDataURL('image/jpeg', 0.62) });
     };
     im.src = ev.target.result;
   };
@@ -1909,12 +1992,12 @@ async function toggleVoiceRecord() {
     mediaRecorder.ondataavailable = ev => { if (ev.data.size) audioChunks.push(ev.data); };
     mediaRecorder.onstop = () => {
       stream.getTracks().forEach(t => t.stop()); isRecordingVoice = false;
-      document.getElementById('micBtn').textContent = '🎙️';
+      document.getElementById('micBtn').textContent = 'ðŸŽ™ï¸';
       const blob = new Blob(audioChunks, { type: 'audio/webm' });
       const rd = new FileReader(); rd.onload = () => sendPayloadMsg({ audio: rd.result }); rd.readAsDataURL(blob);
     };
     mediaRecorder.start(); isRecordingVoice = true;
-    document.getElementById('micBtn').textContent = '⏹️';
+    document.getElementById('micBtn').textContent = 'â¹ï¸';
     toast('Recording... tap again to send');
   } catch (e) { toast('Microphone permission required'); }
 }
@@ -1938,21 +2021,22 @@ function renderChats() {
   const q = (document.getElementById('searchInp').value || '').trim().toLowerCase();
   const list = state.contacts
     .filter(c => inHiddenVault ? !!c.hidden : !c.hidden)
-    .filter(c => !q || c.name.toLowerCase().includes(q) || c.phone.includes(q))
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.email || '').includes(q))
     .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
 
   if (!list.length) {
-    wrap.innerHTML = `<div class="empty"><h3>${inHiddenVault ? 'Hidden Vault' : 'No Chats Yet'}</h3><p>${inHiddenVault ? 'No hidden chats here.' : 'Tap + to check a number and start chatting.'}</p></div>`;
+    wrap.innerHTML = `<div class="empty"><h3>${inHiddenVault ? 'Hidden Vault' : 'No Chats Yet'}</h3><p>${inHiddenVault ? 'No hidden chats here.' : 'Tap + to enter a friendâ€™s Gmail and start chatting.'}</p></div>`;
     return;
   }
 
   wrap.innerHTML = list.map(c => {
-    const on = !!onlineMap[c.phone];
+    const em = cleanEmail(c.email || c.phone);
+    const on = !!onlineMap[em];
     const av = c.dp ? `<img class="dp" src="${c.dp}" alt="">` : esc((c.name[0] || 'U').toUpperCase());
-    const lockIcon = c.locked ? '<span class="lock-tag">🔒</span>' : '';
+    const lockIcon = c.locked ? '<span class="lock-tag">ðŸ”’</span>' : '';
     const bdg = c.unread > 0 ? `<span class="badge">${c.unread}</span>` : '';
     return `
-      <div class="chat-row" onclick="attemptOpenChat('${c.phone}')">
+      <div class="chat-row" onclick="attemptOpenChat('${esc(em)}')">
         <div class="avatar ${on ? 'online' : ''}">${av}<span class="ring"></span></div>
         <div class="chat-info">
           <div class="chat-top">
@@ -1960,7 +2044,7 @@ function renderChats() {
             <div class="chat-time">${c.lastTs ? fmtTime(c.lastTs) : ''}</div>
           </div>
           <div class="chat-sub-row">
-            <div class="chat-preview">${esc(c.lastText || fmtPhone(c.phone))}</div>
+            <div class="chat-preview">${esc(c.lastText || em)}</div>
             ${bdg}
           </div>
         </div>
@@ -1971,37 +2055,40 @@ function renderChats() {
 function renderCalls() {
   const wrap = document.getElementById('callList');
   if (!state.calls.length) { wrap.innerHTML = `<div class="empty"><h3>No Calls</h3><p>Voice and video call history appears here.</p></div>`; return; }
-  wrap.innerHTML = state.calls.map(cl => `
-    <div class="chat-row" onclick="startCall('${cl.type}', '${cl.phone}')">
-      <div class="avatar">${cl.type === 'video' ? '📹' : '📞'}</div>
-      <div class="chat-info">
-        <div class="chat-top"><div class="chat-name">${esc(cl.name)}</div><div class="chat-time">${fmtTime(cl.ts)}</div></div>
-        <div class="chat-sub-row"><div class="chat-preview">${cl.dir === 'out' ? 'Outgoing' : 'Incoming'} • ${fmtPhone(cl.phone)}</div></div>
-      </div>
-    </div>`).join('');
+  wrap.innerHTML = state.calls.map(cl => {
+    const em = cleanEmail(cl.email || cl.phone);
+    return `
+      <div class="chat-row" onclick="startCall('${cl.type}', '${esc(em)}')">
+        <div class="avatar">${cl.type === 'video' ? 'ðŸ“¹' : 'ðŸ“ž'}</div>
+        <div class="chat-info">
+         <div class="chat-top"><div class="chat-name">${esc(cl.name)}</div><div class="chat-time">${fmtTime(cl.ts)}</div></div>
+          <div class="chat-sub-row"><div class="chat-preview">${cl.dir === 'out' ? 'Outgoing' : 'Incoming'} â€¢ ${esc(em)}</div></div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
-function attemptOpenChat(ph) {
-  const c = getContact(ph);
-  if (c && c.locked && !unlockedSessionPeers[c.phone]) {
-    requireUnlock(`🔒 ${c.name}`, 'Enter password or use Face / Fingerprint to open chat.', () => {
-      unlockedSessionPeers[c.phone] = true; openChat(ph);
+function attemptOpenChat(em) {
+  const c = getContact(em);
+  if (c && c.locked && !unlockedSessionPeers[c.email]) {
+    requireUnlock(`ðŸ”’ ${c.name}`, 'Enter password or use Face / Fingerprint to open chat.', () => {
+      unlockedSessionPeers[c.email] = true; openChat(em);
     });
     return;
   }
-  openChat(ph);
+  openChat(em);
 }
 
-function openChat(ph) {
-  const c = ensureContact(ph);
-  currentPeer = c.phone; c.unread = 0; saveState();
+function openChat(em) {
+  const c = ensureContact(em);
+  currentPeer = c.email; c.unread = 0; saveState();
   document.getElementById('chatTitle').textContent = c.name;
   updateHeaderStatus(); renderPinnedBar(c);
   document.getElementById('homeScreen').classList.add('slide-left');
   document.getElementById('chatScreen').classList.remove('hidden');
   renderMsgs(true); renderChats();
-  sendDirect(c.phone, { type: 'read_all', name: state.user.name });
-  sendDirect(c.phone, { type: 'hello', name: state.user.name, dp: state.user.dp || '' });
+  sendDirect(c.email, { type: 'read_all', name: state.user.name });
+  sendDirect(c.email, { type: 'hello', name: state.user.name, dp: state.user.dp || '' });
 }
 
 function closeChat() {
@@ -2019,8 +2106,8 @@ function updateHeaderStatus() {
   const av = document.getElementById('chatAv');
   av.innerHTML = (c.dp ? `<img class="dp" src="${c.dp}" onclick="event.stopPropagation(); viewImg(this.src)">` : esc((c.name[0] || 'U').toUpperCase())) + '<span class="ring"></span>';
   const sub = document.getElementById('chatSub');
-  if (onlineMap[currentPeer]) { av.classList.add('online'); sub.style.color = 'var(--v-100)'; sub.textContent = '● online'; }
-  else { av.classList.remove('online'); sub.style.color = 'var(--soft)'; sub.textContent = fmtPhone(currentPeer); }
+  if (onlineMap[currentPeer]) { av.classList.add('online'); sub.style.color = 'var(--v-100)'; sub.textContent = 'â— online'; }
+  else { av.classList.remove('online'); sub.style.color = 'var(--soft)'; sub.textContent = currentPeer; }
 }
 
 function nearBottom(w) { return (w.scrollHeight - w.scrollTop - w.clientHeight) < 120; }
@@ -2043,19 +2130,19 @@ function renderMsgs(forceBottom, autoNear) {
   const prevTop = w.scrollTop; const wasNear = nearBottom(w);
   const arr = state.messages[currentPeer] || [];
 
-  let html = `<div class="sys-note">End-to-end encrypted chat • ${fmtPhone(currentPeer)}</div>`;
+  let html = `<div class="sys-note">Cloud synced & encrypted â€¢ ${esc(currentPeer)}</div>`;
   for (const m of arr) {
-    const me = m.from === state.user.phone;
+    const me = cleanEmail(m.from) === state.user.email;
     const reacts = m.reactions ? Object.values(m.reactions) : [];
     const qHtml = m.replyTo ? `<div class="quote"><div class="quote-who">${esc(m.replyTo.who)}</div><div class="quote-txt">${esc(m.replyTo.text)}</div></div>` : '';
     const iHtml = m.img ? `<img class="msg-img" src="${m.img}" onclick="event.stopPropagation(); viewImg(this.src)">` : '';
-    const vHtml = m.audio ? `<button class="voice-play-btn" onclick="event.stopPropagation(); playVoiceData('${m.audio}')">▶ Voice Note</button>` : '';
+    const vHtml = m.audio ? `<button class="voice-play-btn" onclick="event.stopPropagation(); playVoiceData('${m.audio}')">â–¶ Voice Note</button>` : '';
     let tks = '';
     if (me) {
-      if (m.status === 'queued') tks = '<span class="ticks">🕒</span>';
-      else if (m.status === 'read') tks = '<span class="ticks read">✓✓</span>';
-      else if (m.status === 'delivered') tks = '<span class="ticks">✓✓</span>';
-      else tks = '<span class="ticks">✓</span>';
+      if (m.status === 'queued') tks = '<span class="ticks">ðŸ•’</span>';
+      else if (m.status === 'read') tks = '<span class="ticks read">âœ“âœ“</span>';
+      else if (m.status === 'delivered') tks = '<span class="ticks">âœ“âœ“</span>';
+      else tks = '<span class="ticks">âœ“</span>';
     }
     html += `
       <div class="msg-row ${me ? 'me' : 'them'} ${reacts.length ? 'has-react' : ''}">
@@ -2064,7 +2151,7 @@ function renderMsgs(forceBottom, autoNear) {
           ${m.text ? `<div>${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}
           <div class="msg-meta">
             ${m.edited ? '<span>edited</span>' : ''}
-            ${m.expiresAt ? '<span>⏳</span>' : ''}
+            ${m.expiresAt ? '<span>â³</span>' : ''}
             <span>${fmtTime(m.ts)}</span>${tks}
           </div>
           ${reacts.length ? `<div class="react-badge">${reacts.slice(0, 4).join('')}</div>` : ''}
@@ -2080,7 +2167,7 @@ function spawnHeartBurst(ev) {
   if (state.animMode === 'off' || !ev) return;
   const h = document.createElement('div');
   h.className = 'heart-burst';
-  h.textContent = '💜';
+  h.textContent = 'ðŸ’œ';
   h.style.left = (ev.clientX || window.innerWidth / 2) + 'px';
   h.style.top = (ev.clientY || window.innerHeight / 2) + 'px';
   document.body.appendChild(h);
@@ -2093,7 +2180,7 @@ function onBubbleTap(id, ev) {
   if (lastId === id && now - lastTap < 300) {
     selectedMsgId = id;
     spawnHeartBurst(ev);
-    reactMsg('💜');
+    reactMsg('ðŸ’œ');
     lastTap = 0; return;
   }
   lastTap = now; lastId = id;
@@ -2105,7 +2192,7 @@ function reactMsg(em) {
   closeMsgSheet();
   const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
   if (!m) return;
-  m.reactions = m.reactions || {}; m.reactions[state.user.phone] = em;
+  m.reactions = m.reactions || {}; m.reactions[state.user.email] = em;
   saveState();
   sendDirect(currentPeer, { type: 'react', name: state.user.name, msgId: m.id, emoji: em });
   renderMsgs(false);
@@ -2116,7 +2203,7 @@ function replySelected() {
   const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
   if (!m) return;
   activeReply = m;
-  document.getElementById('replyWho').textContent = m.from === state.user.phone ? 'You' : getContact(currentPeer).name;
+  document.getElementById('replyWho').textContent = cleanEmail(m.from) === state.user.email ? 'You' : getContact(currentPeer).name;
   document.getElementById('replyPreview').textContent = m.img ? 'Photo' : (m.audio ? 'Voice message' : m.text);
   document.getElementById('replyStrip').classList.add('show');
   document.getElementById('msgInput').focus();
@@ -2132,7 +2219,7 @@ function pinSelected() {
 }
 function renderPinnedBar(c) {
   const bar = document.getElementById('pinnedBar');
-  const m = (state.messages[c.phone] || []).find(x => x.id === c.pinnedId);
+  const m = (state.messages[c.email] || []).find(x => x.id === c.pinnedId);
   if (!m) { bar.classList.remove('show'); return; }
   document.getElementById('pinnedText').textContent = m.text || (m.img ? 'Photo' : 'Voice message');
   bar.classList.add('show');
@@ -2146,7 +2233,7 @@ function showPinnedToast() { toast(document.getElementById('pinnedText').textCon
 function editSelected() {
   closeMsgSheet();
   const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
-  if (!m || m.from !== state.user.phone || !m.text) { toast('Can only edit your text messages'); return; }
+  if (!m || cleanEmail(m.from) !== state.user.email || !m.text) { toast('Can only edit your text messages'); return; }
   const next = prompt('Edit message:', m.text);
   if (next && next.trim()) {
     m.text = next.trim(); m.edited = true; saveState();
@@ -2170,18 +2257,18 @@ function copySelected() {
 }
 
 function initPeer() {
-  if (typeof Peer === 'undefined' || !state.user.phone || peer) return;
-  peer = new Peer('vcfin_' + state.user.phone + '_' + Math.random().toString(16).slice(2, 6), { debug: 0 });
+  if (typeof Peer === 'undefined' || !state.user.email || peer) return;
+  peer = new Peer('vcgm_' + emailKey(state.user.email).slice(0, 8) + '_' + Math.random().toString(16).slice(2, 6), { debug: 0 });
   peer.on('open', () => { peerReady = true; });
   peer.on('call', c => { activeCall = c; if (window._ansStream) { c.answer(window._ansStream); bindCall(c); } });
   peer.on('error', () => {});
 }
 
-async function startCall(type, overridePh) {
-  const target = cleanPhone(overridePh || currentPeer);
+async function startCall(type, overrideEm) {
+  const target = cleanEmail(overrideEm || currentPeer);
   if (!target || !isConnected || !peer || !peerReady) { toast('Connect online first'); return; }
   callType = type; callPeer = target; callMuted = false;
-  state.calls.unshift({ id: 'cl_' + Date.now(), phone: target, name: (getContact(target) || {}).name || fmtPhone(target), type, dir: 'out', ts: Date.now() });
+  state.calls.unshift({ id: 'cl_' + Date.now(), email: target, phone: target, name: (getContact(target) || {}).name || target, type, dir: 'out', ts: Date.now() });
   saveState();
   try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' ? { facingMode: 'user' } : false }); }
   catch (e) { toast('Allow mic/camera permission'); return; }
@@ -2190,11 +2277,11 @@ async function startCall(type, overridePh) {
   sendDirect(target, { type: 'call_invite', name: state.user.name, callType: type, peerId: peer.id });
 }
 
-function onIncomingCall(fromPh, type, callerPeerId) {
-  callType = type; callPeer = fromPh; window._callerId = callerPeerId;
-  state.calls.unshift({ id: 'cl_' + Date.now(), phone: fromPh, name: (getContact(fromPh) || {}).name || fmtPhone(fromPh), type, dir: 'in', ts: Date.now() });
+function onIncomingCall(fromEm, type, callerPeerId) {
+  callType = type; callPeer = fromEm; window._callerId = callerPeerId;
+  state.calls.unshift({ id: 'cl_' + Date.now(), email: fromEm, phone: fromEm, name: (getContact(fromEm) || {}).name || fromEm, type, dir: 'in', ts: Date.now() });
   saveState();
-  openCallScreen(fromPh, type, type === 'video' ? 'Incoming video call' : 'Incoming voice call', 'in');
+  openCallScreen(fromEm, type, type === 'video' ? 'Incoming video call' : 'Incoming voice call', 'in');
 }
 
 async function acceptCall() {
@@ -2232,9 +2319,9 @@ function endCall(remote) {
   callPeer = '';
 }
 
-function openCallScreen(ph, type, st, mode) {
-  const c = getContact(ph) || {};
-  const nm = c.name || fmtPhone(ph);
+function openCallScreen(em, type, st, mode) {
+  const c = getContact(em) || {};
+  const nm = c.name || em;
   document.getElementById('callAv').innerHTML = c.dp ? `<img src="${c.dp}" alt="">` : esc((nm[0] || 'U').toUpperCase());
   document.getElementById('callName').textContent = nm;
   document.getElementById('callStatus').textContent = st;
@@ -2244,8 +2331,8 @@ function openCallScreen(ph, type, st, mode) {
 
 function setCallBtns(mode) {
   const box = document.getElementById('callActions');
-  if (mode === 'in') box.innerHTML = `<button class="c-circle no" onclick="endCall(false)">✕</button><button class="c-circle ok" onclick="acceptCall()">📞</button>`;
-  else box.innerHTML = `<button class="c-circle no" onclick="toggleMute()">🎙️</button><button class="c-circle no" onclick="endCall(false)">✕</button>`;
+  if (mode === 'in') box.innerHTML = `<button class="c-circle no" onclick="endCall(false)">âœ•</button><button class="c-circle ok" onclick="acceptCall()">ðŸ“ž</button>`;
+  else box.innerHTML = `<button class="c-circle no" onclick="toggleMute()">ðŸŽ™ï¸</button><button class="c-circle no" onclick="endCall(false)">âœ•</button>`;
 }
 
 function startTimer() {
@@ -2257,7 +2344,7 @@ function startTimer() {
 }
 
 function openProfileModal() {
-  document.getElementById('profilePhoneLbl').textContent = 'Verified: ' + fmtPhone(state.user.phone);
+  document.getElementById('profileEmailLbl').textContent = 'Google: ' + (state.user.email || '');
   document.getElementById('profileNameInp').value = state.user.name || '';
   tempDp = state.user.dp || '';
   renderDpBox();
@@ -2296,21 +2383,21 @@ function saveProfile() {
   if (!nm) { toast('Name required'); return; }
   state.user.name = nm; state.user.dp = tempDp || '';
   saveState(); renderProfileIcon(); publishDirectory(); pingContacts(true);
-  closeModal('profileModal'); toast('Saved');
+  closeModal('profileModal'); toast('Saved & synced to Google');
 }
 
 function openChatSettingsModal() {
   const c = getContact(currentPeer); if (!c) return;
   document.getElementById('optTitle').textContent = c.name;
-  document.getElementById('optPhone').textContent = fmtPhone(c.phone);
+  document.getElementById('optEmail').textContent = c.email;
   document.getElementById('timerSelect').value = String(c.disappearSec || 0);
   updateChatOptUI(c);
   document.getElementById('chatOptModal').classList.add('show');
 }
 
 function updateChatOptUI(c) {
-  document.getElementById('toggleLockBtn').textContent = c.locked ? '🔓 Unlock Chat' : '🔒 Lock Chat';
-  document.getElementById('toggleHideBtn').textContent = c.hidden ? '👁️ Unhide Chat' : '👁️ Hide Chat';
+  document.getElementById('toggleLockBtn').textContent = c.locked ? 'ðŸ”“ Unlock Chat' : 'ðŸ”’ Lock Chat';
+  document.getElementById('toggleHideBtn').textContent = c.hidden ? 'ðŸ‘ï¸ Unhide Chat' : 'ðŸ‘ï¸ Hide Chat';
 }
 
 function clearChatHistory() {
@@ -2351,7 +2438,13 @@ function toast(msg) {
   });
 
   positionGlassSlider('tabChats');
-  if (state.user.phone && state.user.name) enterApp();
+  initFirebase();
+
+  if (state.user.email && state.user.name) {
+    enterApp();
+    syncFromCloud(false);
+    subscribeCloudInbox();
+  }
 
   const delay = state.animMode === 'off' ? 0 : 850;
   setTimeout(() => {
