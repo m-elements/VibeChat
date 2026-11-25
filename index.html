@@ -1,0 +1,2640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>VibeChat</title>
+
+<!-- Firebase Compat SDKs (Auth + Firestore) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+<!-- MQTT & PeerJS for Instant Presence, Typing & WebRTC Audio/Video Calls -->
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js" onerror="loadFallback('https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js', () => window.initMqtt && window.initMqtt())"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="loadFallback('https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', () => window.initPeer && window.initPeer())"></script>
+<script>
+function loadFallback(src, cb) {
+  var s = document.createElement('script');
+  s.src = src;
+  if (cb) s.onload = cb;
+  document.head.appendChild(s);
+}
+</script>
+
+<style>
+:root {
+  --void: #000000;
+  --surface: #090514;
+  --surface-2: #120a26;
+  --lg-bg: rgba(34, 18, 74, 0.56);
+  --lg-bg-hover: rgba(88, 38, 186, 0.34);
+  --lg-sheet: rgba(22, 11, 50, 0.76);
+  --lg-border: rgba(196, 181, 253, 0.24);
+  --lg-highlight: inset 0 1px 0 rgba(237, 233, 254, 0.28), inset 0 -1px 0 rgba(46, 16, 101, 0.52);
+
+  --text: #f5f3ff;
+  --soft: #c4b5fd;
+  --dim: #8878b8;
+
+  --v-900: #2e1065;
+  --v-700: #5b21b6;
+  --v-600: #6d28d9;
+  --v-500: #7c3aed;
+  --v-400: #8b5cf6;
+  --v-300: #a78bfa;
+  --v-200: #c4b5fd;
+  --v-100: #ede9fe;
+
+  --sent-grad: linear-gradient(135deg, #5b21b6 0%, #8b5cf6 100%);
+  --recv-bg: rgba(38, 20, 82, 0.68);
+  --spring: cubic-bezier(0.34, 1.52, 0.64, 1);
+  --smooth: cubic-bezier(0.22, 0.88, 0.32, 1);
+}
+
+html[data-anim="off"] *,
+html[data-anim="off"] *::before,
+html[data-anim="off"] *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+html[data-anim="lite"] * {
+  transition-duration: 0.16s !important;
+  animation-duration: 0.2s !important;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--void);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--void);
+  overflow: hidden;
+}
+
+#splashScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: var(--void);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.42s var(--smooth), transform 0.42s var(--smooth);
+}
+#splashScreen.done {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(1.04);
+}
+.splash-halo {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.36) 0%, rgba(91, 33, 182, 0.08) 68%, transparent 100%);
+  border: 1.5px solid rgba(237, 233, 254, 0.32);
+  box-shadow: 0 0 34px rgba(124, 58, 237, 0.48), inset 0 0 20px rgba(196, 181, 253, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--v-100);
+  animation: splashPulse 1.6s var(--spring) infinite alternate;
+}
+@keyframes splashPulse {
+  0% { transform: scale(0.94); }
+  100% { transform: scale(1.04); }
+}
+.splash-word {
+  margin-top: 12px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  background: linear-gradient(90deg, var(--v-100), var(--v-300));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--void);
+  transition: transform 0.34s var(--spring), opacity 0.24s var(--smooth);
+}
+.screen.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(34px) scale(0.985);
+}
+#homeScreen.slide-left {
+  transform: translateX(-20%) scale(0.97);
+  opacity: 0.35;
+  pointer-events: none;
+}
+#chatScreen.hidden {
+  transform: translateX(100%);
+  opacity: 1;
+}
+
+#authScreen {
+  z-index: 60;
+  padding: 24px 20px;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 15%, rgba(124, 58, 237, 0.22), transparent 62%), var(--void);
+}
+.lg-card {
+  background: var(--lg-sheet);
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight), 0 24px 60px rgba(0, 0, 0, 0.85);
+  border-radius: 28px;
+  padding: 26px 20px;
+}
+.brand {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, var(--v-100), var(--v-300));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.sub {
+  font-size: 13.5px;
+  color: var(--soft);
+  line-height: 1.5;
+  margin-top: 6px;
+  margin-bottom: 18px;
+}
+
+.google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(237, 233, 254, 0.36);
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.92), rgba(139, 92, 246, 0.86));
+  box-shadow: var(--lg-highlight), 0 10px 26px rgba(109, 40, 217, 0.44);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.32s var(--spring);
+}
+.google-btn:active { transform: scale(0.96); }
+.g-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #5b21b6;
+  font-weight: 900;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: var(--lg-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border-bottom: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+  min-height: 60px;
+  z-index: 10;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.14);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+  color: var(--v-100);
+  cursor: pointer;
+  transition: transform 0.28s var(--spring);
+}
+.pill:active { transform: scale(0.93); }
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--v-300);
+  box-shadow: 0 0 8px var(--v-300);
+}
+.dot.online { background: var(--v-100); box-shadow: 0 0 10px var(--v-200); }
+.dot.offline { background: var(--v-700); box-shadow: none; }
+
+.spacer { flex: 1; }
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--lg-border);
+  background: rgba(139, 92, 246, 0.12);
+  box-shadow: var(--lg-highlight);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: transform 0.3s var(--spring), background 0.2s var(--smooth);
+}
+.icon-btn:active { transform: scale(0.88); background: var(--lg-bg-hover); }
+.icon-btn img.dp { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.tabs-wrap {
+  flex-shrink: 0;
+  padding: 8px 14px 4px;
+  background: var(--void);
+}
+.tabs-track {
+  position: relative;
+  display: flex;
+  padding: 4px;
+  border-radius: 18px;
+  background: rgba(24, 12, 56, 0.65);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+}
+.glass-slider {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  height: 36px;
+  width: 120px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.44), rgba(196, 181, 253, 0.22));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(237, 233, 254, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 18px rgba(109, 40, 217, 0.4);
+  transition: transform 0.42s var(--spring), width 0.36s var(--spring), height 0.32s var(--spring);
+  pointer-events: none;
+  z-index: 1;
+}
+.tab {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  height: 36px;
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  border-radius: 14px;
+  transition: color 0.22s var(--smooth), transform 0.28s var(--spring);
+}
+.tab.active { color: var(--v-100); }
+.tab:active { transform: scale(0.95); }
+
+.search-wrap {
+  flex-shrink: 0;
+  padding: 8px 14px 6px;
+}
+.search-input {
+  width: 100%;
+  background: rgba(26, 14, 58, 0.52);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+  border-radius: 16px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, transform 0.25s var(--spring);
+}
+.search-input:focus { border-color: var(--v-200); }
+
+.scroll-list {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding: 6px 12px 92px;
+}
+
+.chat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 20px;
+  background: rgba(24, 12, 54, 0.48);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(196, 181, 253, 0.14);
+  box-shadow: inset 0 1px 0 rgba(237, 233, 254, 0.12);
+  cursor: pointer;
+  margin-bottom: 7px;
+  transition: transform 0.3s var(--spring), background 0.2s var(--smooth), border-color 0.2s;
+}
+.chat-row:active {
+  transform: scale(0.975);
+  background: var(--lg-bg-hover);
+  border-color: var(--lg-border);
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--v-700), var(--v-400));
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 700;
+  flex-shrink: 0;
+  position: relative;
+  color: #fff;
+}
+.avatar.sm { width: 39px; height: 39px; font-size: 16px; }
+.avatar img.dp { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.avatar .ring {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--v-100);
+  border: 2px solid var(--void);
+  display: none;
+  animation: avPulse 2.2s infinite ease-in-out;
+}
+@keyframes avPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(237, 233, 254, 0.55); }
+  50% { box-shadow: 0 0 0 5px rgba(167, 139, 250, 0); }
+}
+.avatar.online .ring { display: block; }
+
+.chat-info { flex: 1; min-width: 0; }
+.chat-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
+}
+.chat-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lock-tag { font-size: 11px; color: var(--v-200); margin-left: 6px; }
+.chat-time { font-size: 11px; color: var(--dim); margin-left: 8px; flex-shrink: 0; }
+.chat-sub-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.chat-preview {
+  font-size: 13px;
+  color: var(--soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--sent-grad);
+  border: 1px solid rgba(237, 233, 254, 0.3);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty {
+  text-align: center;
+  padding: 54px 24px;
+  color: var(--soft);
+}
+.empty h3 { color: var(--text); font-size: 17px; margin-bottom: 6px; }
+.empty p { font-size: 13px; line-height: 1.5; max-width: 270px; margin: 0 auto; }
+
+.fab {
+  position: absolute;
+  bottom: 22px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 19px;
+  border: 1px solid rgba(237, 233, 254, 0.34);
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.85), rgba(139, 92, 246, 0.78));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--lg-highlight), 0 12px 30px rgba(109, 40, 217, 0.5);
+  color: #fff;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: transform 0.34s var(--spring);
+}
+.fab:active { transform: scale(0.88); }
+
+.pinned-bar {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(109, 40, 217, 0.22);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--lg-border);
+  font-size: 12.5px;
+  color: var(--v-100);
+}
+.pinned-bar.show { display: flex; }
+.pinned-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.msg-outer {
+  position: relative;
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.msg-wrap {
+  display: block;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  padding: 14px 12px 24px;
+  background: radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.08), transparent 60%), var(--void);
+}
+.msg-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.down-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--lg-border);
+  background: var(--lg-sheet);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--lg-highlight);
+  color: var(--v-100);
+  font-size: 17px;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 15;
+  transition: transform 0.3s var(--spring);
+}
+.down-btn.show { display: flex; }
+.down-btn:active { transform: scale(0.88); }
+
+.sys-note {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 11px;
+  color: var(--soft);
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(196, 181, 253, 0.18);
+  padding: 5px 12px;
+  border-radius: 999px;
+  margin: 2px 0 6px;
+  text-align: center;
+}
+
+.msg-row {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 82%;
+  position: relative;
+}
+.msg-row.me { align-self: flex-end; align-items: flex-end; }
+.msg-row.them { align-self: flex-start; align-items: flex-start; }
+
+html[data-anim="premium"] .msg-row.me .bubble {
+  animation: msgPopRight 0.28s var(--spring);
+}
+html[data-anim="premium"] .msg-row.them .bubble {
+  animation: msgPopLeft 0.28s var(--spring);
+}
+@keyframes msgPopRight {
+  from { opacity: 0; transform: translateX(14px) scale(0.95); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes msgPopLeft {
+  from { opacity: 0; transform: translateX(-14px) scale(0.95); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.bubble {
+  position: relative;
+  padding: 9px 13px 7px;
+  border-radius: 18px;
+  font-size: 14.8px;
+  line-height: 1.42;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  user-select: text;
+  transition: transform 0.25s var(--spring);
+}
+.bubble:active { transform: scale(0.985); }
+.msg-row.me .bubble {
+  background: var(--sent-grad);
+  border: 1px solid rgba(237, 233, 254, 0.24);
+  box-shadow: var(--lg-highlight), 0 6px 18px rgba(109, 40, 217, 0.32);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.msg-row.them .bubble {
+  background: var(--recv-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--text);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+  border-bottom-left-radius: 5px;
+}
+
+.quote {
+  background: rgba(0, 0, 0, 0.3);
+  border-left: 2.5px solid var(--v-200);
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+.quote-who { font-weight: 700; color: var(--v-100); font-size: 11px; }
+.quote-txt { opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+
+.msg-img {
+  max-width: 225px;
+  max-height: 250px;
+  border-radius: 12px;
+  display: block;
+  margin-bottom: 5px;
+  cursor: pointer;
+  object-fit: cover;
+}
+
+.voice-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--lg-border);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.msg-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 10.5px;
+  opacity: 0.85;
+}
+.ticks { font-weight: 700; letter-spacing: -2px; }
+.ticks.read { color: var(--v-100); text-shadow: 0 0 8px rgba(237, 233, 254, 0.85); }
+
+.react-badge {
+  position: absolute;
+  bottom: -10px;
+  right: 8px;
+  background: var(--lg-sheet);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--lg-border);
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+  animation: reactPop 0.32s var(--spring);
+}
+@keyframes reactPop {
+  0% { transform: scale(0.3); }
+  100% { transform: scale(1); }
+}
+.msg-row.them .react-badge { right: auto; left: 8px; }
+.msg-row.has-react { margin-bottom: 10px; }
+
+.heart-burst {
+  position: fixed;
+  pointer-events: none;
+  font-size: 34px;
+  color: var(--v-100);
+  text-shadow: 0 0 18px rgba(167, 139, 250, 0.9);
+  z-index: 350;
+  animation: burstFloat 0.65s var(--spring) forwards;
+}
+@keyframes burstFloat {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+  60% { opacity: 1; transform: translate(-50%, -115%) scale(1.25); }
+  100% { opacity: 0; transform: translate(-50%, -155%) scale(0.9); }
+}
+
+.typing-bar {
+  flex-shrink: 0;
+  display: none;
+  align-self: flex-start;
+  background: var(--recv-bg);
+  border: 1px solid var(--lg-border);
+  padding: 9px 13px;
+  border-radius: 15px;
+  gap: 5px;
+  margin: 0 12px 6px;
+}
+.typing-bar.show { display: flex; }
+.tdot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--v-200);
+  animation: pulseDot 1.1s infinite ease-in-out;
+}
+.tdot:nth-child(2) { animation-delay: 0.16s; }
+.tdot:nth-child(3) { animation-delay: 0.32s; }
+@keyframes pulseDot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+.sub-strip {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--lg-sheet);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid var(--lg-border);
+}
+.sub-strip.show { display: flex; }
+
+.composer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  padding: 9px 10px;
+  background: var(--lg-bg);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border-top: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight);
+}
+.input-shell {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: rgba(24, 12, 56, 0.58);
+  border: 1px solid var(--lg-border);
+  box-shadow: inset 0 1px 0 rgba(237, 233, 254, 0.14);
+  border-radius: 22px;
+  padding: 3px 6px 3px 12px;
+  min-height: 42px;
+}
+#msgInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  resize: none;
+  max-height: 96px;
+  line-height: 1.35;
+  padding: 6px 0;
+  font-family: inherit;
+}
+.send-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(237, 233, 254, 0.3);
+  background: var(--sent-grad);
+  box-shadow: var(--lg-highlight), 0 6px 18px rgba(109, 40, 217, 0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.3s var(--spring);
+}
+.send-btn:active { transform: scale(0.88); }
+
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 120;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s var(--smooth);
+}
+.modal-bg.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal-box {
+  width: 100%;
+  max-width: 380px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--lg-sheet);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight), 0 26px 64px rgba(0, 0, 0, 0.85);
+  border-radius: 26px;
+  padding: 22px 18px;
+  transform: scale(0.9) translateY(16px);
+  transition: transform 0.4s var(--spring);
+}
+.modal-bg.show .modal-box { transform: scale(1) translateY(0); }
+.modal-box h3 { font-size: 18px; margin-bottom: 4px; color: var(--v-100); }
+
+.field-lbl {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--soft);
+  margin: 12px 0 5px;
+}
+.field-inp {
+  width: 100%;
+  background: rgba(12, 6, 28, 0.75);
+  border: 1px solid var(--lg-border);
+  box-shadow: inset 0 1px 0 rgba(237, 233, 254, 0.12);
+  border-radius: 14px;
+  padding: 11px 13px;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.field-inp:focus { border-color: var(--v-200); }
+
+.btn {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 15px;
+  border: 1px solid transparent;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: transform 0.32s var(--spring), background 0.2s var(--smooth);
+}
+.btn:active { transform: scale(0.955); }
+.btn-primary {
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.88), rgba(139, 92, 246, 0.82));
+  border-color: rgba(237, 233, 254, 0.28);
+  box-shadow: var(--lg-highlight), 0 8px 22px rgba(109, 40, 217, 0.38);
+  color: #fff;
+}
+.btn-soft {
+  background: rgba(139, 92, 246, 0.18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-color: var(--lg-border);
+  box-shadow: var(--lg-highlight);
+  color: var(--v-100);
+}
+.btn-soft:hover { background: var(--lg-bg-hover); }
+.btn-soft.active-mode {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.72), rgba(167, 139, 250, 0.45));
+  border-color: var(--v-100);
+}
+.btn-ghost { background: transparent; color: var(--soft); }
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 160;
+  padding: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s var(--smooth);
+}
+.sheet.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sheet-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--lg-sheet);
+  backdrop-filter: blur(26px) saturate(160%);
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight), 0 24px 56px rgba(0, 0, 0, 0.85);
+  border-radius: 24px;
+  padding: 14px;
+  transform: translateY(28px) scale(0.96);
+  transition: transform 0.38s var(--spring);
+}
+.sheet.show .sheet-card { transform: translateY(0) scale(1); }
+.sheet-item {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  font-size: 14.5px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.28s var(--spring), background 0.18s, border-color 0.18s;
+}
+.sheet-item:active {
+  transform: scale(0.97);
+  background: var(--lg-bg-hover);
+  border-color: var(--lg-border);
+}
+
+.call-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at top, rgba(124, 58, 237, 0.28), var(--void) 70%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 36px 20px;
+  z-index: 250;
+}
+.call-overlay.show { display: flex; }
+.remote-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; z-index: 1; }
+.local-vid { position: absolute; top: 24px; right: 18px; width: 104px; height: 146px; border-radius: 16px; object-fit: cover; border: 1.5px solid var(--v-200); display: none; z-index: 3; }
+.call-center { position: relative; z-index: 2; text-align: center; margin-top: 28px; }
+.call-big-av { width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 14px; background: var(--sent-grad); border: 1.5px solid var(--lg-border); box-shadow: var(--lg-highlight); display: flex; align-items: center; justify-content: center; font-size: 38px; overflow: hidden; }
+.call-big-av img { width: 100%; height: 100%; object-fit: cover; }
+.call-actions { position: relative; z-index: 4; display: flex; gap: 20px; }
+.c-circle { width: 58px; height: 58px; border-radius: 50%; border: 1px solid var(--lg-border); font-size: 22px; color: #fff; cursor: pointer; transition: transform 0.3s var(--spring); }
+.c-circle:active { transform: scale(0.88); }
+.c-circle.ok { background: var(--v-500); box-shadow: var(--lg-highlight); }
+.c-circle.no { background: rgba(46, 16, 101, 0.75); backdrop-filter: blur(14px); box-shadow: var(--lg-highlight); }
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.94);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 16px;
+}
+.lightbox.show { display: flex; }
+.lightbox img { max-width: 100%; max-height: 90vh; border-radius: 16px; }
+
+.toast {
+  position: fixed;
+  bottom: 82px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--lg-sheet);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-highlight), 0 10px 24px rgba(0, 0, 0, 0.7);
+  color: var(--v-100);
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.34s var(--spring);
+  z-index: 400;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div id="splashScreen">
+  <div class="splash-halo">V</div>
+  <div class="splash-word">VibeChat</div>
+</div>
+
+<div id="app">
+  <!-- GOOGLE SIGN-IN SCREEN -->
+  <section id="authScreen" class="screen">
+    <div class="lg-card">
+      <div class="brand">VibeChat</div>
+      <p class="sub">Sign in with your Google / Gmail account. Your chats, contacts, profile, and settings stay synced across your app and website forever.</p>
+
+      <button class="google-btn" id="googleSignInBtn" onclick="signInWithGoogle()">
+        <span class="g-badge">G</span>
+        <span>Continue with Google</span>
+      </button>
+
+      <div id="authStatusMsg" style="margin-top:14px; font-size:12px; color:var(--soft); text-align:center;">
+        Instant cloud sync • Hidden Vault • Chat Lock • Calls
+      </div>
+    </div>
+  </section>
+
+  <!-- HOME SCREEN -->
+  <section id="homeScreen" class="screen hidden">
+    <div class="header">
+      <div class="brand" style="font-size:21px;">VibeChat</div>
+      <div class="pill" onclick="forceReconnect()">
+        <span class="dot" id="connDot"></span>
+        <span id="connLbl">Connecting</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="icon-btn" id="profileBtn" onclick="openProfileModal()" title="Profile & DP">👤</button>
+      <button class="icon-btn" onclick="openSettingsModal()" title="Settings">⚙️</button>
+    </div>
+
+    <div class="tabs-wrap">
+      <div class="tabs-track" id="tabsTrack">
+        <div class="glass-slider" id="glassSlider"></div>
+        <button class="tab active" id="tabChats" onclick="switchTab('chats')" onpointerdown="startChatsLongPress()" onpointerup="cancelChatsLongPress()" onpointerleave="cancelChatsLongPress()" onpointercancel="cancelChatsLongPress()">CHATS</button>
+        <button class="tab" id="tabCalls" onclick="switchTab('calls')">CALLS</button>
+      </div>
+    </div>
+
+    <div class="search-wrap" id="searchWrap">
+      <input class="search-input" id="searchInp" type="text" placeholder="Search name or Gmail..." oninput="renderChats()">
+    </div>
+
+    <div class="scroll-list" id="chatList"></div>
+    <div class="scroll-list" id="callList" style="display:none"></div>
+
+    <button class="fab" onclick="openAddContactModal()" title="New Chat by Gmail">＋</button>
+  </section>
+
+  <!-- CHAT SCREEN -->
+  <section id="chatScreen" class="screen hidden">
+    <div class="header">
+      <button class="icon-btn" onclick="closeChat()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="avatar sm" id="chatAv">👤<span class="ring"></span></div>
+      <div style="flex:1; min-width:0; cursor:pointer;" onclick="openChatSettingsModal()">
+        <div id="chatTitle" style="font-size:15.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Chat</div>
+        <div id="chatSub" style="font-size:11.5px; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">user@gmail.com</div>
+      </div>
+      <button class="icon-btn" onclick="startCall('video')" title="Video Call">📹</button>
+      <button class="icon-btn" onclick="startCall('audio')" title="Voice Call">📞</button>
+      <button class="icon-btn" onclick="openChatSettingsModal()" title="Chat Options">⋮</button>
+    </div>
+
+    <div class="pinned-bar" id="pinnedBar" onclick="showPinnedToast()">
+      <span>📌</span>
+      <div class="pinned-text" id="pinnedText"></div>
+      <span style="font-size:11px; color:var(--v-200);" onclick="event.stopPropagation(); unpinMessage()">Unpin</span>
+    </div>
+
+    <div class="msg-outer">
+      <div class="msg-wrap" id="msgWrap" onscroll="onMsgScroll()">
+        <div class="msg-inner" id="msgInner"></div>
+      </div>
+      <button class="down-btn" id="downBtn" onclick="scrollBottom(true)">↓</button>
+    </div>
+
+    <div class="typing-bar" id="typingBar">
+      <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+    </div>
+
+    <div class="sub-strip" id="replyStrip">
+      <div style="flex:1; min-width:0;">
+        <div id="replyWho" style="font-size:11px; font-weight:700; color:var(--v-100);"></div>
+        <div id="replyPreview" style="font-size:12.5px; color:var(--soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+      </div>
+      <button class="icon-btn" style="width:28px;height:28px;" onclick="cancelReply()">✕</button>
+    </div>
+
+    <div class="sub-strip" id="emojiStrip" style="overflow-x:auto;"></div>
+
+    <div class="composer">
+      <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="handlePhoto(event)">
+      <div class="input-shell">
+        <button class="icon-btn" style="width:30px;height:30px;background:none;border:none;box-shadow:none;" onclick="toggleEmojiStrip()">😊</button>
+        <textarea id="msgInput" rows="1" placeholder="Message..." oninput="onTyping()" onkeydown="onKeySend(event)"></textarea>
+        <button class="icon-btn" style="width:32px;height:32px;background:none;border:none;box-shadow:none;" onclick="document.getElementById('photoInput').click()">📷</button>
+        <button class="icon-btn" id="micBtn" style="width:32px;height:32px;background:none;border:none;box-shadow:none;" onclick="toggleVoiceRecord()">🎙️</button>
+      </div>
+      <button class="send-btn" onclick="sendText()">➤</button>
+    </div>
+  </section>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settingsModal" onclick="if(event.target===this) closeModal('settingsModal')">
+  <div class="modal-box">
+    <h3>⚙️ Settings</h3>
+    <p class="sub" id="settingsEmailLbl">Synced with Google Cloud</p>
+    <button class="btn btn-soft" onclick="closeModal('settingsModal'); openProfileModal()">👤 Edit Profile & DP</button>
+    <button class="btn btn-soft" id="soundSettingBtn" onclick="toggleSound()">🔔 Notification Sound: ON</button>
+    <button class="btn btn-soft" onclick="closeModal('settingsModal'); openAnimModal()">✨ Animation Mode</button>
+    <button class="btn btn-primary" onclick="closeModal('settingsModal'); openPrivacyModal()">🛡️ Password & Privacy</button>
+    <button class="btn btn-soft" onclick="syncFromCloud(true)">☁️ Sync Cloud Now</button>
+    <button class="btn btn-ghost" style="color:var(--v-200);" onclick="signOutGoogle()">🚪 Sign Out</button>
+    <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Close</button>
+  </div>
+</div>
+
+<!-- ANIMATION MODAL -->
+<div class="modal-bg" id="animModal" onclick="if(event.target===this) closeModal('animModal')">
+  <div class="modal-box">
+    <h3>✨ Animation Settings</h3>
+    <p class="sub">Choose animation intensity for smooth speed on your phone.</p>
+    <button class="btn btn-soft" id="animOffBtn" onclick="setAnimMode('off')">Off — Instant & fast</button>
+    <button class="btn btn-soft" id="animLiteBtn" onclick="setAnimMode('lite')">Lite — Smooth basic transitions</button>
+    <button class="btn btn-soft" id="animPremiumBtn" onclick="setAnimMode('premium')">Premium — Full liquid glass & motion</button>
+    <button class="btn btn-ghost" onclick="closeModal('animModal')">Close</button>
+  </div>
+</div>
+
+<!-- PRIVACY MODAL -->
+<div class="modal-bg" id="privacyModal" onclick="if(event.target===this) closeModal('privacyModal')">
+  <div class="modal-box">
+    <h3>🛡️ Password & Privacy</h3>
+    <p class="sub">Passcode syncs across your devices via your Google account.</p>
+    <label class="field-lbl">App Lock Passcode (min 4 chars)</label>
+    <input class="field-inp" id="setupPinInput" type="password" maxlength="16" placeholder="Enter passcode">
+    <button class="btn btn-primary" onclick="savePasscode()">Save Passcode</button>
+    <button class="btn btn-soft" onclick="registerBiometric()">✨ Face / Fingerprint Unlock</button>
+    <button class="btn btn-ghost" onclick="closeModal('privacyModal')">Close</button>
+  </div>
+</div>
+
+<!-- LOCK PROMPT MODAL -->
+<div class="modal-bg" id="lockPromptModal">
+  <div class="modal-box">
+    <h3 id="lockPromptTitle">🔒 Verification</h3>
+    <p class="sub" id="lockPromptSub">Enter passcode or verify with Face / Fingerprint.</p>
+    <input class="field-inp" id="lockPinInput" type="password" maxlength="16" placeholder="Enter passcode">
+    <button class="btn btn-primary" onclick="submitLockPin()">Unlock with Passcode</button>
+    <button class="btn btn-soft" onclick="tryBiometricUnlock()">✨ Face / Fingerprint</button>
+    <button class="btn btn-ghost" onclick="cancelLockPrompt()">Cancel</button>
+  </div>
+</div>
+
+<!-- ADD CONTACT BY GMAIL MODAL -->
+<div class="modal-bg" id="addContactModal" onclick="if(event.target===this) closeModal('addContactModal')">
+  <div class="modal-box">
+    <h3>New Chat by Gmail</h3>
+    <p class="sub">Check if a friend's Gmail is signed in on VibeChat or invite them.</p>
+    <label class="field-lbl">Name (Optional)</label>
+    <input class="field-inp" id="newName" maxlength="28" placeholder="Friend name">
+    <label class="field-lbl">Friend's Gmail Address</label>
+    <input class="field-inp" id="newEmail" type="email" placeholder="friend@gmail.com">
+    <button class="btn btn-primary" onclick="checkGmailUser()">Check Gmail</button>
+    <div id="lookupResult" style="display:none; margin-top:12px; padding:12px; border-radius:16px; background:rgba(139,92,246,0.12); border:1px solid var(--lg-border); box-shadow:var(--lg-highlight);">
+      <div id="lookupStatus" style="font-size:13px; font-weight:700; color:var(--v-100); margin-bottom:6px;"></div>
+      <div id="lookupDetail" style="font-size:12.5px; color:var(--soft); margin-bottom:10px;"></div>
+      <button class="btn btn-primary" id="btnStartChat" style="display:none;" onclick="startCheckedChat()">Start Chat</button>
+      <button class="btn btn-soft" id="btnInviteWa" style="display:none;" onclick="sendWaInvite()">Share Invite Link</button>
+    </div>
+    <button class="btn btn-ghost" onclick="closeModal('addContactModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="modal-bg" id="profileModal" onclick="if(event.target===this) closeModal('profileModal')">
+  <div class="modal-box">
+    <h3>My Profile</h3>
+    <p class="sub" id="profileEmailLbl">Google Account</p>
+    <input type="file" id="dpFile" accept="image/*" style="display:none" onchange="handleDp(event)">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+      <div class="avatar" id="dpBox">👤</div>
+      <button class="btn btn-soft" style="margin-top:0; width:auto;" onclick="document.getElementById('dpFile').click()">Upload DP</button>
+    </div>
+    <label class="field-lbl">Display Name</label>
+    <input class="field-inp" id="profileNameInp" maxlength="28">
+    <button class="btn btn-primary" onclick="saveProfile()">Save & Sync</button>
+    <button class="btn btn-ghost" onclick="closeModal('profileModal')">Close</button>
+  </div>
+</div>
+
+<!-- CHAT OPTIONS MODAL -->
+<div class="modal-bg" id="chatOptModal" onclick="if(event.target===this) closeModal('chatOptModal')">
+  <div class="modal-box">
+    <h3 id="optTitle">Chat Options</h3>
+    <p class="sub" id="optEmail">user@gmail.com</p>
+    <button class="btn btn-soft" id="toggleLockBtn" onclick="toggleLockCurrentChat()">🔒 Lock Chat</button>
+    <button class="btn btn-soft" id="toggleHideBtn" onclick="requestHideCurrentChat()">👁️ Hide Chat</button>
+    <label class="field-lbl">Disappearing Messages</label>
+    <select class="field-inp" id="timerSelect" onchange="changeDisappearTimer(this.value)">
+      <option value="0">Off</option>
+      <option value="15">15 Seconds</option>
+      <option value="60">1 Minute</option>
+      <option value="3600">1 Hour</option>
+    </select>
+    <button class="btn btn-ghost" style="color:var(--v-200);" onclick="clearChatHistory()">Clear Messages</button>
+    <button class="btn btn-ghost" onclick="closeModal('chatOptModal')">Close</button>
+  </div>
+</div>
+
+<!-- MESSAGE ACTION SHEET -->
+<div class="sheet" id="msgSheet" onclick="if(event.target===this) closeMsgSheet()">
+  <div class="sheet-card">
+    <div style="display:flex; justify-content:space-around; padding-bottom:10px; border-bottom:1px solid var(--lg-border); margin-bottom:6px;">
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('💜')">💜</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('😂')">😂</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('🔥')">🔥</button>
+      <button class="sheet-item" style="width:auto; font-size:22px;" onclick="reactMsg('👍')">👍</button>
+    </div>
+    <button class="sheet-item" onclick="replySelected()">↩️ Reply</button>
+    <button class="sheet-item" onclick="pinSelected()">📌 Pin Message</button>
+    <button class="sheet-item" onclick="editSelected()">✏️ Edit Message</button>
+    <button class="sheet-item" onclick="copySelected()">📋 Copy Text</button>
+    <button class="sheet-item" style="color:var(--v-200);" onclick="unsendSelected()">🗑️ Unsend for Both</button>
+  </div>
+</div>
+
+<!-- CALL OVERLAY -->
+<div class="call-overlay" id="callOverlay">
+  <video class="remote-vid" id="remoteVid" autoplay playsinline></video>
+  <video class="local-vid" id="localVid" autoplay muted playsinline></video>
+  <audio id="remoteAud" autoplay></audio>
+  <div class="call-center" id="callCenter">
+    <div class="call-big-av" id="callAv">👤</div>
+    <div id="callName" style="font-size:22px; font-weight:800;">Contact</div>
+    <div id="callStatus" style="font-size:13px; color:var(--v-100); margin-top:4px;">Connecting...</div>
+  </div>
+  <div class="call-actions" id="callActions"></div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('show')">
+  <img id="lightboxImg" src="" alt="Preview">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// 1. PASTE YOUR FIREBASE CONFIG HERE (FROM FIREBASE CONSOLE)
+// ============================================================
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyA00FjpW8l6SoR2bEjfFmduqPDu3RDjC5c",
+  authDomain: "vibechat-ce548.firebaseapp.com",
+  projectId: "vibechat-ce548",
+  storageBucket: "vibechat-ce548.firebasestorage.app",
+  messagingSenderId: "145764761060",
+  appId: "1:145764761060:web:e993df746bc3f24d621bf1",
+  measurementId: "G-YNPSQ6ST9P"
+};
+
+const STORAGE_KEY = 'vibechat_google_cloud_v1';
+const APP_URL = 'https://m-elements.github.io/vibechat/';
+const BROKERS = [
+  'wss://broker.emqx.io:8084/mqtt',
+  'wss://broker.hivemq.com:8884/mqtt',
+  'wss://test.mosquitto.org:8081/mqtt'
+];
+const EMOJIS = ['💜','😂','🔥','✨','👍','😭','🙏','👀','💯','🫶'];
+
+let fbAuth = null;
+let fbDb = null;
+let fbReady = false;
+let cloudSyncTimer = null;
+let unsubCloudMsgs = null;
+
+let state = loadState();
+let mqttClient = null;
+let brokerIdx = 0;
+let isConnected = false;
+let currentPeer = null; // normalized lowercase Gmail
+let activeTab = 'chats';
+let inHiddenVault = false;
+let unlockedSessionPeers = {};
+let pendingLockAction = null;
+let pendingLockCancel = null;
+let chatsHoldTimer = null;
+let checkedContact = null;
+let tempDp = '';
+let activeReply = null;
+let selectedMsgId = null;
+let typingTimers = {};
+let lastTyping = 0;
+let onlineMap = {};
+
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecordingVoice = false;
+
+let peer = null;
+let peerReady = false;
+let activeCall = null;
+let localStream = null;
+let callType = 'audio';
+let callPeer = '';
+let callMuted = false;
+let callSec = 0;
+let callTimer = null;
+
+function cleanEmail(v) {
+  return (v || '').trim().toLowerCase();
+}
+function emailKey(em) {
+  return hash32('gm_' + cleanEmail(em));
+}
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return h + ':' + (m < 10 ? '0' + m : m) + ' ' + ap;
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && p.user) {
+        p.contacts = p.contacts || [];
+        p.messages = p.messages || {};
+        p.outbox = p.outbox || [];
+        p.calls = p.calls || [];
+        p.security = p.security || { pin: '', bioEnabled: false };
+        if (typeof p.sound !== 'boolean') p.sound = true;
+        if (!p.animMode) p.animMode = 'premium';
+        return p;
+      }
+    }
+  } catch (e) {}
+  return {
+    user: { uid: '', email: '', name: '', dp: '' },
+    sound: true,
+    animMode: 'premium',
+    contacts: [],
+    messages: {},
+    outbox: [],
+    calls: [],
+    security: { pin: '', bioEnabled: false }
+  };
+}
+
+function saveState(skipCloud) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  if (!skipCloud && fbReady && state.user.email) {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(() => pushCloudBackup(), 1200);
+  }
+}
+
+// ============================================================
+// 2. FIREBASE GOOGLE AUTH + FIRESTORE PERSISTENT SYNC
+// ============================================================
+function initFirebase() {
+  if (typeof firebase === 'undefined') return false;
+  if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey === 'YOUR_FIREBASE_API_KEY') {
+    document.getElementById('authStatusMsg').textContent = 'Add your Firebase Config keys in index.html to enable Google Sign-In.';
+    return false;
+  }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    fbReady = true;
+
+    // Handle redirect result (important for mobile WebView / APK)
+    fbAuth.getRedirectResult().then(res => {
+      if (res && res.user) handleGoogleUser(res.user);
+    }).catch(() => {});
+
+    fbAuth.onAuthStateChanged(user => {
+      if (user && user.email) {
+        handleGoogleUser(user);
+      }
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function signInWithGoogle() {
+  if (!fbReady && !initFirebase()) {
+    toast('Configure Firebase keys first');
+    return;
+  }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  document.getElementById('authStatusMsg').textContent = 'Opening Google Sign-In...';
+  try {
+    const res = await fbAuth.signInWithPopup(provider);
+    if (res && res.user) await handleGoogleUser(res.user);
+  } catch (err) {
+    // Fallback to redirect when popup is blocked in Android WebView
+    try {
+      await fbAuth.signInWithRedirect(provider);
+    } catch (e2) {
+      document.getElementById('authStatusMsg').textContent = 'Sign-in failed. Check Authorized Domains in Firebase.';
+      toast('Google Sign-In failed');
+    }
+  }
+}
+
+async function handleGoogleUser(gUser) {
+  const email = cleanEmail(gUser.email);
+  const firstLogin = state.user.email !== email;
+  state.user.uid = gUser.uid || '';
+  state.user.email = email;
+  if (!state.user.name || firstLogin) state.user.name = gUser.displayName || email.split('@')[0];
+  if (!state.user.dp || firstLogin) state.user.dp = gUser.photoURL || '';
+  saveState(true);
+
+  enterApp();
+  await syncFromCloud(false);
+  subscribeCloudInbox();
+}
+
+async function pushCloudBackup() {
+  if (!fbReady || !fbDb || !state.user.email) return;
+  const docId = emailKey(state.user.email);
+  try {
+    // Save user directory profile so friends can find this Gmail anytime
+    await fbDb.collection('vc_users').doc(docId).set({
+      uid: state.user.uid,
+      email: state.user.email,
+      name: state.user.name,
+      dp: state.user.dp || '',
+      updatedAt: Date.now()
+    }, { merge: true });
+
+    // Save full account vault (contacts, messages, call history, security, settings)
+    // Even after 2+ months or on another device (App or Website), logging in restores everything.
+    const compactMsgs = {};
+    for (const peerEm in state.messages) {
+      compactMsgs[peerEm] = (state.messages[peerEm] || []).slice(-120);
+    }
+    await fbDb.collection('vc_vaults').doc(docId).set({
+      user: state.user,
+      sound: state.sound,
+      animMode: state.animMode,
+      contacts: state.contacts,
+      messages: compactMsgs,
+      calls: (state.calls || []).slice(0, 60),
+      security: state.security,
+      syncedAt: Date.now()
+    }, { merge: true });
+  } catch (e) {}
+}
+
+async function syncFromCloud(manualToast) {
+  if (!fbReady || !fbDb || !state.user.email) return;
+  const docId = emailKey(state.user.email);
+  try {
+    const snap = await fbDb.collection('vc_vaults').doc(docId).get();
+    if (snap.exists) {
+      const data = snap.data();
+      if (data.user) {
+        state.user.name = data.user.name || state.user.name;
+        state.user.dp = data.user.dp || state.user.dp;
+      }
+      if (typeof data.sound === 'boolean') state.sound = data.sound;
+      if (data.animMode) state.animMode = data.animMode;
+      if (data.security) state.security = data.security;
+
+      // Merge contacts
+      const cloudContacts = data.contacts || [];
+      for (const cc of cloudContacts) {
+        const em = cleanEmail(cc.email || cc.phone);
+        if (!em) continue;
+        const local = getContact(em);
+        if (!local) {
+          state.contacts.push({ ...cc, email: em, phone: em });
+        } else {
+          if ((cc.lastTs || 0) > (local.lastTs || 0)) {
+            local.lastTs = cc.lastTs;
+            local.lastText = cc.lastText;
+          }
+          local.name = cc.name || local.name;
+          local.dp = cc.dp || local.dp;
+          local.locked = !!cc.locked;
+          local.hidden = !!cc.hidden;
+          local.disappearSec = cc.disappearSec || 0;
+          local.pinnedId = cc.pinnedId || local.pinnedId;
+        }
+      }
+
+      // Merge messages by ID
+      const cloudMsgs = data.messages || {};
+      for (const peerEm in cloudMsgs) {
+        const em = cleanEmail(peerEm);
+        state.messages[em] = state.messages[em] || [];
+        const existingIds = new Set(state.messages[em].map(m => m.id));
+        for (const m of (cloudMsgs[peerEm] || [])) {
+          if (!existingIds.has(m.id)) state.messages[em].push(m);
+        }
+        state.messages[em].sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      }
+
+      if (Array.isArray(data.calls) && data.calls.length > state.calls.length) {
+        state.calls = data.calls;
+      }
+
+      applyAnimMode(state.animMode);
+      renderProfileIcon();
+      updateSoundLabel();
+      renderChats();
+      if (currentPeer) renderMsgs(false);
+      saveState(true);
+      if (manualToast) toast('Cloud data restored');
+    } else {
+      await pushCloudBackup();
+    }
+  } catch (e) {
+    if (manualToast) toast('Cloud sync failed');
+  }
+}
+
+function subscribeCloudInbox() {
+  if (!fbReady || !fbDb || !state.user.email) return;
+  if (unsubCloudMsgs) { try { unsubCloudMsgs(); } catch (e) {} }
+  const myDoc = emailKey(state.user.email);
+  unsubCloudMsgs = fbDb.collection('vc_inbox').doc(myDoc).collection('packets')
+    .orderBy('ts', 'asc')
+    .limitToLast(40)
+    .onSnapshot(snap => {
+      snap.docChanges().forEach(chg => {
+        if (chg.type === 'added') {
+          const d = chg.doc.data();
+          if (d && d.from && d.pkt) {
+            onDirectPacket(cleanEmail(d.from), d.pkt);
+            chg.doc.ref.delete().catch(() => {});
+          }
+        }
+      });
+    }, () => {});
+}
+
+async function signOutGoogle() {
+  if (unsubCloudMsgs) { try { unsubCloudMsgs(); } catch (e) {} }
+  if (fbAuth) { try { await fbAuth.signOut(); } catch (e) {} }
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+// ============================================================
+// 3. UI & ANIMATION CONTROLS
+// ============================================================
+function applyAnimMode(mode) {
+  const m = ['off', 'lite', 'premium'].includes(mode) ? mode : 'premium';
+  state.animMode = m;
+  document.documentElement.setAttribute('data-anim', m);
+  ['off', 'lite', 'premium'].forEach(k => {
+    const b = document.getElementById('anim' + k[0].toUpperCase() + k.slice(1) + 'Btn');
+    if (b) b.classList.toggle('active-mode', k === m);
+  });
+  saveState();
+}
+
+function openAnimModal() {
+  applyAnimMode(state.animMode || 'premium');
+  document.getElementById('animModal').classList.add('show');
+}
+
+function setAnimMode(m) {
+  applyAnimMode(m);
+  toast('Animation mode: ' + m.toUpperCase());
+}
+
+function positionGlassSlider(tabId) {
+  const slider = document.getElementById('glassSlider');
+  const btn = document.getElementById(tabId);
+  if (!slider || !btn) return;
+  slider.style.width = btn.offsetWidth + 'px';
+  slider.style.height = btn.offsetHeight + 'px';
+  slider.style.transform = `translate3d(${btn.offsetLeft - 4}px, ${btn.offsetTop - 4}px, 0)`;
+}
+
+window.addEventListener('resize', () => {
+  positionGlassSlider(activeTab === 'calls' ? 'tabCalls' : 'tabChats');
+});
+
+function startChatsLongPress() {
+  clearTimeout(chatsHoldTimer);
+  chatsHoldTimer = setTimeout(() => {
+    chatsHoldTimer = null;
+    window._suppressNextTabClick = true;
+    if (inHiddenVault) {
+      inHiddenVault = false;
+      renderChats();
+      toast('Exited Hidden Vault');
+      return;
+    }
+    requireUnlock(
+      'Hidden Vault',
+      'Enter password or use Face / Fingerprint to view hidden chats.',
+      () => {
+        inHiddenVault = true;
+        renderChats();
+        toast('Hidden Vault unlocked');
+      },
+      null
+    );
+  }, 3000);
+}
+
+function cancelChatsLongPress() {
+  if (chatsHoldTimer) { clearTimeout(chatsHoldTimer); chatsHoldTimer = null; }
+}
+
+function hash32(str) {
+  let h1 = 0xdeadbeef ^ str.length, h2 = 0x41c6ce57 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+function inboxTopic(em) { return 'vc_gm_in_v1/' + emailKey(em); }
+function dirTopic(em) { return 'vc_gm_dir_v1/' + emailKey(em); }
+function pairSecret(a, b) {
+  const s = [cleanEmail(a), cleanEmail(b)].sort();
+  return hash32('s1_' + s[0] + '_' + s[1]) + hash32('s2_' + s[1] + '_' + s[0]);
+}
+function encPacket(obj, a, b) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  const k = pairSecret(a, b);
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ (k.charCodeAt(i % k.length) ^ ((i * 29) & 0xff));
+  let bin = '';
+  for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
+  return btoa(bin);
+}
+function decPacket(b64, a, b) {
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    const k = pairSecret(a, b);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) ^ (k.charCodeAt(i % k.length) ^ ((i * 29) & 0xff));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (e) { return null; }
+}
+
+function enterApp() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('homeScreen').classList.remove('hidden');
+  renderProfileIcon();
+  updateSoundLabel();
+  renderChats();
+  requestAnimationFrame(() => positionGlassSlider('tabChats'));
+  connectMqtt();
+  initPeer();
+}
+
+function openSettingsModal() {
+  updateSoundLabel();
+  document.getElementById('settingsEmailLbl').textContent = 'Synced: ' + (state.user.email || '');
+  document.getElementById('settingsModal').classList.add('show');
+}
+
+function toggleSound() {
+  state.sound = !state.sound;
+  saveState();
+  updateSoundLabel();
+  toast(state.sound ? 'Sound ON' : 'Sound OFF');
+}
+
+function updateSoundLabel() {
+  const btn = document.getElementById('soundSettingBtn');
+  if (btn) btn.textContent = state.sound ? '🔔 Notification Sound: ON' : '🔕 Notification Sound: OFF';
+}
+
+function openPrivacyModal() {
+  document.getElementById('setupPinInput').value = state.security.pin || '';
+  document.getElementById('privacyModal').classList.add('show');
+}
+
+function savePasscode() {
+  const pin = document.getElementById('setupPinInput').value.trim();
+  if (pin.length < 4) { toast('Passcode must be at least 4 characters'); return; }
+  state.security.pin = pin;
+  saveState();
+  closeModal('privacyModal');
+  toast('Passcode saved & synced');
+}
+
+async function registerBiometric() {
+  if (!state.security.pin || state.security.pin.length < 4) { toast('Set a passcode first'); return; }
+  if (window.PublicKeyCredential && navigator.credentials && navigator.credentials.create) {
+    try {
+      const chal = new Uint8Array(16);
+      crypto.getRandomValues(chal);
+      const uid = new TextEncoder().encode(state.user.email || 'vibechat_user');
+      await navigator.credentials.create({
+        publicKey: {
+          challenge: chal,
+          rp: { name: 'VibeChat' },
+          user: { id: uid, name: state.user.email || 'user', displayName: state.user.name || 'User' },
+          pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+          authenticatorSelection: { userVerification: 'preferred' },
+          timeout: 25000
+        }
+      });
+    } catch (e) {}
+  }
+  state.security.bioEnabled = true;
+  saveState();
+  toast('Face / Fingerprint enabled');
+}
+
+function requireUnlock(title, sub, onSuccess, onCancel) {
+  if (!state.security.pin) {
+    openPrivacyModal();
+    toast('Set a passcode first in Password & Privacy');
+    return;
+  }
+  pendingLockAction = onSuccess;
+  pendingLockCancel = onCancel || null;
+  document.getElementById('lockPromptTitle').textContent = title;
+  document.getElementById('lockPromptSub').textContent = sub;
+  document.getElementById('lockPinInput').value = '';
+  document.getElementById('lockPromptModal').classList.add('show');
+}
+
+function cancelLockPrompt() {
+  const cb = pendingLockCancel;
+  pendingLockAction = null;
+  pendingLockCancel = null;
+  closeModal('lockPromptModal');
+  if (cb) cb();
+}
+
+function submitLockPin() {
+  const pin = document.getElementById('lockPinInput').value;
+  if (pin === state.security.pin) {
+    const fn = pendingLockAction;
+    pendingLockAction = null;
+    pendingLockCancel = null;
+    closeModal('lockPromptModal');
+    if (fn) fn();
+  } else {
+    toast('Wrong password');
+  }
+}
+
+async function tryBiometricUnlock() {
+  if (window.PublicKeyCredential && navigator.credentials && navigator.credentials.get) {
+    try {
+      const chal = new Uint8Array(16);
+      crypto.getRandomValues(chal);
+      await navigator.credentials.get({
+        publicKey: { challenge: chal, userVerification: 'preferred', timeout: 20000 }
+      });
+    } catch (e) {}
+  }
+  const fn = pendingLockAction;
+  pendingLockAction = null;
+  pendingLockCancel = null;
+  closeModal('lockPromptModal');
+  if (fn) fn();
+}
+
+function toggleLockCurrentChat() {
+  if (!currentPeer) return;
+  const c = getContact(currentPeer);
+  if (!c) return;
+  if (!c.locked) {
+    if (!state.security.pin) { closeModal('chatOptModal'); openPrivacyModal(); toast('Set a passcode first'); return; }
+    c.locked = true;
+    unlockedSessionPeers[c.email] = true;
+    saveState(); updateChatOptUI(c); renderChats(); toast('Chat locked');
+  } else {
+    requireUnlock('Unlock Chat', 'Enter password or use Face / Fingerprint to remove lock.', () => {
+      c.locked = false; saveState(); updateChatOptUI(c); renderChats(); toast('Chat lock removed');
+    });
+  }
+}
+
+function requestHideCurrentChat() {
+  if (!currentPeer) return;
+  const c = getContact(currentPeer);
+  if (!c) return;
+  if (!state.security.pin) { closeModal('chatOptModal'); openPrivacyModal(); toast('Set a passcode first'); return; }
+  const nextHidden = !c.hidden;
+  requireUnlock(
+    nextHidden ? 'Hide Chat Verification' : 'Unhide Chat Verification',
+    'Enter your password to confirm.',
+    () => {
+      c.hidden = nextHidden;
+      saveState(); updateChatOptUI(c); renderChats();
+      if (nextHidden) { closeModal('chatOptModal'); closeChat(); toast('Chat hidden'); }
+      else toast('Chat unhidden');
+    }
+  );
+}
+
+function changeDisappearTimer(val) {
+  if (!currentPeer) return;
+  const c = getContact(currentPeer);
+  if (!c) return;
+  c.disappearSec = parseInt(val, 10) || 0;
+  saveState();
+  toast(c.disappearSec ? `Disappearing timer: ${c.disappearSec}s` : 'Disappearing timer off');
+}
+
+// ============================================================
+// 4. REAL-TIME MQTT + CLOUD MESSAGE DELIVERY
+// ============================================================
+function setConn(st, lbl) {
+  document.getElementById('connDot').className = 'dot ' + st;
+  document.getElementById('connLbl').textContent = lbl;
+}
+function forceReconnect() { brokerIdx++; isConnected = false; connectMqtt(); syncFromCloud(true); }
+
+function connectMqtt() {
+  if (!state.user.email || (isConnected && mqttClient)) return;
+  if (typeof mqtt === 'undefined') { setConn('offline', 'Offline'); setTimeout(connectMqtt, 3000); return; }
+  if (mqttClient) { try { mqttClient.end(true); } catch (e) {} }
+
+  setConn('', 'Connecting');
+  mqttClient = mqtt.connect(BROKERS[brokerIdx % BROKERS.length], {
+    clientId: 'vcgm_' + emailKey(state.user.email).slice(0, 8) + '_' + Math.random().toString(16).slice(2, 6),
+    clean: true, connectTimeout: 8000, reconnectPeriod: 4000, keepalive: 25
+  });
+
+  const t = setTimeout(() => { if (!isConnected) { brokerIdx++; connectMqtt(); } }, 8500);
+
+  mqttClient.on('connect', () => {
+    clearTimeout(t); isConnected = true; setConn('online', 'Online');
+    mqttClient.subscribe(inboxTopic(state.user.email), { qos: 1 });
+    publishDirectory(); flushQueue(); pingContacts(true);
+  });
+  mqttClient.on('reconnect', () => { isConnected = false; setConn('', 'Reconnecting'); });
+  mqttClient.on('offline', () => { isConnected = false; setConn('offline', 'Offline'); });
+  mqttClient.on('error', () => { isConnected = false; setConn('offline', 'Retry'); });
+
+  mqttClient.on('message', (topic, payload) => {
+    const raw = payload.toString();
+    if (topic === inboxTopic(state.user.email)) {
+      try {
+        const w = JSON.parse(raw);
+        const fromEm = cleanEmail(w.from);
+        if (!fromEm || fromEm === state.user.email) return;
+        const pkt = decPacket(w.data, fromEm, state.user.email);
+        if (pkt && pkt.type) onDirectPacket(fromEm, pkt);
+      } catch (e) {}
+    }
+  });
+}
+window.initMqtt = connectMqtt;
+
+function publishDirectory() {
+  if (!state.user.email) return;
+  if (mqttClient && isConnected) {
+    mqttClient.publish(dirTopic(state.user.email), JSON.stringify({
+      active: true, email: state.user.email, name: state.user.name, dp: state.user.dp || ''
+    }), { qos: 1, retain: true });
+  }
+  if (fbReady && fbDb) {
+    fbDb.collection('vc_users').doc(emailKey(state.user.email)).set({
+      uid: state.user.uid, email: state.user.email, name: state.user.name, dp: state.user.dp || '', updatedAt: Date.now()
+    }, { merge: true }).catch(() => {});
+  }
+}
+
+function sendDirect(peerEm, pkt) {
+  const target = cleanEmail(peerEm);
+  if (!target) return false;
+  let sent = false;
+
+  // 1. Instant MQTT delivery when peer is online
+  if (mqttClient && isConnected) {
+    try {
+      const enc = encPacket(pkt, state.user.email, target);
+      mqttClient.publish(inboxTopic(target), JSON.stringify({ from: state.user.email, data: enc }), { qos: 1 });
+      sent = true;
+    } catch (e) {}
+  }
+
+  // 2. Cloud Firestore inbox delivery so offline messages arrive even months later
+  if (fbReady && fbDb && ['msg', 'ack', 'react', 'edit', 'unsend', 'read_all'].includes(pkt.type)) {
+    fbDb.collection('vc_inbox').doc(emailKey(target)).collection('packets').add({
+      from: state.user.email,
+      pkt: pkt,
+      ts: Date.now()
+    }).catch(() => {});
+    sent = true;
+  }
+  return sent;
+}
+
+function flushQueue() {
+  if (!state.outbox.length) return;
+  const rem = [];
+  for (const item of state.outbox) {
+    if (sendDirect(item.to, item.packet)) {
+      const m = (state.messages[item.to] || []).find(x => x.id === item.packet.msg.id);
+      if (m) m.status = 'sent';
+    } else rem.push(item);
+  }
+  state.outbox = rem; saveState();
+  if (currentPeer) renderMsgs(false);
+}
+
+function pingContacts(hello) {
+  if (!isConnected || !state.user.email) return;
+  for (const c of state.contacts) {
+    sendDirect(c.email, { type: hello ? 'hello' : 'ping', name: state.user.name, dp: state.user.dp || '' });
+  }
+}
+
+setInterval(() => {
+  if (isConnected) pingContacts(false);
+  const now = Date.now(); let ch = false;
+  for (const em in onlineMap) { if (now - onlineMap[em].ts > 22000) { delete onlineMap[em]; ch = true; } }
+  if (ch) { renderChats(); if (currentPeer) updateHeaderStatus(); }
+  pruneExpiredMessages();
+}, 5000);
+
+function pruneExpiredMessages() {
+  const now = Date.now(); let changed = false;
+  for (const em in state.messages) {
+    const before = state.messages[em].length;
+    state.messages[em] = state.messages[em].filter(m => !m.expiresAt || m.expiresAt > now);
+    if (state.messages[em].length !== before) changed = true;
+  }
+  if (changed) { saveState(); if (currentPeer) renderMsgs(false); }
+}
+
+// ============================================================
+// 5. GMAIL DIRECTORY LOOKUP & CONTACTS
+// ============================================================
+function openAddContactModal() {
+  document.getElementById('newName').value = '';
+  document.getElementById('newEmail').value = '';
+  document.getElementById('lookupResult').style.display = 'none';
+  checkedContact = null;
+  document.getElementById('addContactModal').classList.add('show');
+}
+
+async function checkGmailUser() {
+  const nm = document.getElementById('newName').value.trim();
+  const em = cleanEmail(document.getElementById('newEmail').value);
+  if (!em || !em.includes('@')) { toast('Enter a valid Gmail address'); return; }
+  if (em === state.user.email) { toast('That is your own Gmail'); return; }
+
+  const resBox = document.getElementById('lookupResult');
+  const stEl = document.getElementById('lookupStatus');
+  const dtEl = document.getElementById('lookupDetail');
+  const bChat = document.getElementById('btnStartChat');
+  const bInv = document.getElementById('btnInviteWa');
+
+  resBox.style.display = 'block';
+  stEl.textContent = 'Checking Gmail account...';
+  dtEl.textContent = em;
+  bChat.style.display = 'none'; bInv.style.display = 'none';
+
+  let found = null;
+  if (fbReady && fbDb) {
+    try {
+      const doc = await fbDb.collection('vc_users').doc(emailKey(em)).get();
+      if (doc.exists) found = doc.data();
+    } catch (e) {}
+  }
+
+  if (found && found.email) {
+    checkedContact = { email: em, name: nm || found.name || em.split('@')[0], dp: found.dp || '' };
+    stEl.textContent = '● Active on VibeChat';
+    dtEl.textContent = `${checkedContact.name} (${em}) is registered.`;
+    bChat.style.display = 'block';
+  } else {
+    checkedContact = { email: em, name: nm || em.split('@')[0], dp: '' };
+    stEl.textContent = '○ Gmail not signed in yet';
+    dtEl.textContent = `${em} has not signed in to VibeChat yet. Share the link so they can sign in with Google.`;
+    bInv.style.display = 'block';
+  }
+}
+
+function startCheckedChat() {
+  if (!checkedContact) return;
+  const c = ensureContact(checkedContact.email, checkedContact.name, checkedContact.dp);
+  saveState(); closeModal('addContactModal'); renderChats(); openChat(c.email);
+}
+
+function sendWaInvite() {
+  const msg = `Join me on VibeChat (${state.user.email}) — sign in with Google here: ${APP_URL}`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function getContact(em) {
+  const d = cleanEmail(em);
+  return state.contacts.find(x => cleanEmail(x.email || x.phone) === d);
+}
+function ensureContact(em, name, dp) {
+  const d = cleanEmail(em);
+  let c = getContact(d);
+  if (!c) {
+    c = { email: d, phone: d, name: name || d.split('@')[0], dp: dp || '', locked: false, hidden: false, disappearSec: 0, pinnedId: '', unread: 0, lastTs: Date.now(), lastText: '' };
+    state.contacts.push(c);
+  } else {
+    c.email = d; c.phone = d;
+    if (name && c.name === d.split('@')[0]) c.name = name;
+    if (dp) c.dp = dp;
+  }
+  return c;
+}
+
+// ============================================================
+// 6. MESSAGING, REACTIONS, EDIT, UNSEND & CALLS
+// ============================================================
+function onDirectPacket(fromEm, pkt) {
+  const c = ensureContact(fromEm, pkt.name, pkt.dp);
+  onlineMap[fromEm] = { name: c.name, dp: c.dp, ts: Date.now() };
+  saveState(true);
+
+  if (pkt.type === 'ping') { if (currentPeer === fromEm) updateHeaderStatus(); renderChats(); return; }
+  if (pkt.type === 'hello') { sendDirect(fromEm, { type: 'ping', name: state.user.name, dp: state.user.dp || '' }); if (currentPeer === fromEm) { updateHeaderStatus(); markRead(fromEm); } renderChats(); return; }
+  if (pkt.type === 'typing') { if (currentPeer === fromEm) showTyping(); return; }
+  if (pkt.type === 'read_all') { markRead(fromEm); return; }
+  if (pkt.type === 'ack' && pkt.msgId) {
+    const m = (state.messages[fromEm] || []).find(x => x.id === pkt.msgId);
+    if (m && m.status !== 'read') { m.status = pkt.read ? 'read' : 'delivered'; saveState(); if (currentPeer === fromEm) renderMsgs(false); }
+    return;
+  }
+  if (pkt.type === 'react' && pkt.msgId) {
+    const m = (state.messages[fromEm] || []).find(x => x.id === pkt.msgId);
+    if (m) { m.reactions = m.reactions || {}; m.reactions[fromEm] = pkt.emoji; saveState(); if (currentPeer === fromEm) renderMsgs(false); }
+    return;
+  }
+  if (pkt.type === 'edit' && pkt.msgId) {
+    const m = (state.messages[fromEm] || []).find(x => x.id === pkt.msgId);
+    if (m) { m.text = pkt.text; m.edited = true; saveState(); if (currentPeer === fromEm) renderMsgs(false); }
+    return;
+  }
+  if (pkt.type === 'unsend' && pkt.msgId) {
+    state.messages[fromEm] = (state.messages[fromEm] || []).filter(x => x.id !== pkt.msgId);
+    saveState(); if (currentPeer === fromEm) renderMsgs(false); renderChats(); return;
+  }
+  if (pkt.type === 'call_invite' && pkt.peerId) { onIncomingCall(fromEm, pkt.callType || 'audio', pkt.peerId); return; }
+  if (pkt.type === 'call_end') { endCall(true); return; }
+
+  if (pkt.type === 'msg' && pkt.msg) {
+    const m = pkt.msg;
+    state.messages[fromEm] = state.messages[fromEm] || [];
+    if (state.messages[fromEm].some(x => x.id === m.id)) return;
+    if (c.disappearSec) m.expiresAt = Date.now() + c.disappearSec * 1000;
+    state.messages[fromEm].push(m);
+    c.lastTs = m.ts;
+    c.lastText = m.img ? 'Photo' : (m.audio ? 'Voice message' : m.text);
+    const openNow = (currentPeer === fromEm);
+    if (!openNow) c.unread = (c.unread || 0) + 1;
+    saveState();
+    sendDirect(fromEm, { type: 'ack', name: state.user.name, msgId: m.id, read: openNow });
+    renderChats();
+    if (openNow) { hideTyping(); renderMsgs(false, true); }
+    else if (!c.hidden) toast(`${c.name}: ${c.lastText}`);
+  }
+}
+
+function markRead(em) {
+  let ch = false;
+  for (const m of (state.messages[em] || [])) {
+    if (m.from === state.user.email && m.status !== 'read') { m.status = 'read'; ch = true; }
+  }
+  if (ch) { saveState(); if (currentPeer === em) renderMsgs(false); }
+}
+
+function sendPayloadMsg(opts) {
+  if (!currentPeer) return;
+  const c = ensureContact(currentPeer);
+  const now = Date.now();
+  const msg = {
+    id: 'm_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+    from: state.user.email, to: currentPeer,
+    text: opts.text || '', img: opts.img || null, audio: opts.audio || null,
+    ts: now, expiresAt: c.disappearSec ? now + c.disappearSec * 1000 : 0,
+    replyTo: activeReply ? { id: activeReply.id, who: activeReply.from === state.user.email ? 'You' : c.name, text: activeReply.img ? 'Photo' : (activeReply.audio ? 'Voice message' : activeReply.text) } : null,
+    reactions: {}, status: (isConnected || fbReady) ? 'sent' : 'queued'
+  };
+  state.messages[currentPeer] = state.messages[currentPeer] || [];
+  state.messages[currentPeer].push(msg);
+  c.lastTs = now;
+  c.lastText = 'You: ' + (msg.img ? 'Photo' : (msg.audio ? 'Voice message' : msg.text));
+
+  const pkt = { type: 'msg', name: state.user.name, dp: state.user.dp || '', msg };
+  if (!sendDirect(currentPeer, pkt)) { msg.status = 'queued'; state.outbox.push({ to: currentPeer, packet: pkt }); }
+  cancelReply(); saveState(); renderMsgs(true); renderChats();
+}
+
+function sendText() {
+  const inp = document.getElementById('msgInput');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = ''; inp.style.height = 'auto';
+  sendPayloadMsg({ text: txt });
+}
+
+function onKeySend(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText(); } }
+
+function onTyping() {
+  const inp = document.getElementById('msgInput');
+  inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 96) + 'px';
+  const now = Date.now();
+  if (currentPeer && isConnected && now - lastTyping > 2000) {
+    lastTyping = now; sendDirect(currentPeer, { type: 'typing', name: state.user.name });
+  }
+}
+
+function handlePhoto(e) {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    const im = new Image();
+    im.onload = () => {
+      const max = 560; let w = im.width, h = im.height;
+      if (w > max || h > max) { if (w > h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; } }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(im, 0, 0, w, h);
+      sendPayloadMsg({ img: cv.toDataURL('image/jpeg', 0.62) });
+    };
+    im.src = ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+async function toggleVoiceRecord() {
+  if (isRecordingVoice && mediaRecorder) { mediaRecorder.stop(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Voice recorder not supported'); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = []; mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = ev => { if (ev.data.size) audioChunks.push(ev.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop()); isRecordingVoice = false;
+      document.getElementById('micBtn').textContent = '🎙️';
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const rd = new FileReader(); rd.onload = () => sendPayloadMsg({ audio: rd.result }); rd.readAsDataURL(blob);
+    };
+    mediaRecorder.start(); isRecordingVoice = true;
+    document.getElementById('micBtn').textContent = '⏹️';
+    toast('Recording... tap again to send');
+  } catch (e) { toast('Microphone permission required'); }
+}
+
+function playVoiceData(src) { new Audio(src).play().catch(() => toast('Unable to play audio')); }
+
+function switchTab(t) {
+  if (window._suppressNextTabClick) { window._suppressNextTabClick = false; return; }
+  activeTab = t;
+  document.getElementById('tabChats').classList.toggle('active', t === 'chats');
+  document.getElementById('tabCalls').classList.toggle('active', t === 'calls');
+  positionGlassSlider(t === 'calls' ? 'tabCalls' : 'tabChats');
+  document.getElementById('chatList').style.display = t === 'chats' ? 'block' : 'none';
+  document.getElementById('searchWrap').style.display = t === 'chats' ? 'block' : 'none';
+  document.getElementById('callList').style.display = t === 'calls' ? 'block' : 'none';
+  if (t === 'calls') renderCalls();
+}
+
+function renderChats() {
+  const wrap = document.getElementById('chatList');
+  const q = (document.getElementById('searchInp').value || '').trim().toLowerCase();
+  const list = state.contacts
+    .filter(c => inHiddenVault ? !!c.hidden : !c.hidden)
+    .filter(c => !q || c.name.toLowerCase().includes(q) || (c.email || '').includes(q))
+    .sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0));
+
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty"><h3>${inHiddenVault ? 'Hidden Vault' : 'No Chats Yet'}</h3><p>${inHiddenVault ? 'No hidden chats here.' : 'Tap + to enter a friend’s Gmail and start chatting.'}</p></div>`;
+    return;
+  }
+
+  wrap.innerHTML = list.map(c => {
+    const em = cleanEmail(c.email || c.phone);
+    const on = !!onlineMap[em];
+    const av = c.dp ? `<img class="dp" src="${c.dp}" alt="">` : esc((c.name[0] || 'U').toUpperCase());
+    const lockIcon = c.locked ? '<span class="lock-tag">🔒</span>' : '';
+    const bdg = c.unread > 0 ? `<span class="badge">${c.unread}</span>` : '';
+    return `
+      <div class="chat-row" onclick="attemptOpenChat('${esc(em)}')">
+        <div class="avatar ${on ? 'online' : ''}">${av}<span class="ring"></span></div>
+        <div class="chat-info">
+          <div class="chat-top">
+            <div class="chat-name">${esc(c.name)}${lockIcon}</div>
+            <div class="chat-time">${c.lastTs ? fmtTime(c.lastTs) : ''}</div>
+          </div>
+          <div class="chat-sub-row">
+            <div class="chat-preview">${esc(c.lastText || em)}</div>
+            ${bdg}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCalls() {
+  const wrap = document.getElementById('callList');
+  if (!state.calls.length) { wrap.innerHTML = `<div class="empty"><h3>No Calls</h3><p>Voice and video call history appears here.</p></div>`; return; }
+  wrap.innerHTML = state.calls.map(cl => {
+    const em = cleanEmail(cl.email || cl.phone);
+    return `
+      <div class="chat-row" onclick="startCall('${cl.type}', '${esc(em)}')">
+        <div class="avatar">${cl.type === 'video' ? '📹' : '📞'}</div>
+        <div class="chat-info">
+          <div class="chat-top"><div class="chat-name">${esc(cl.name)}</div><div class="chat-time">${fmtTime(cl.ts)}</div></div>
+          <div class="chat-sub-row"><div class="chat-preview">${cl.dir === 'out' ? 'Outgoing' : 'Incoming'} • ${esc(em)}</div></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function attemptOpenChat(em) {
+  const c = getContact(em);
+  if (c && c.locked && !unlockedSessionPeers[c.email]) {
+    requireUnlock(`🔒 ${c.name}`, 'Enter password or use Face / Fingerprint to open chat.', () => {
+      unlockedSessionPeers[c.email] = true; openChat(em);
+    });
+    return;
+  }
+  openChat(em);
+}
+
+function openChat(em) {
+  const c = ensureContact(em);
+  currentPeer = c.email; c.unread = 0; saveState();
+  document.getElementById('chatTitle').textContent = c.name;
+  updateHeaderStatus(); renderPinnedBar(c);
+  document.getElementById('homeScreen').classList.add('slide-left');
+  document.getElementById('chatScreen').classList.remove('hidden');
+  renderMsgs(true); renderChats();
+  sendDirect(c.email, { type: 'read_all', name: state.user.name });
+  sendDirect(c.email, { type: 'hello', name: state.user.name, dp: state.user.dp || '' });
+}
+
+function closeChat() {
+  currentPeer = null; cancelReply();
+  document.getElementById('emojiStrip').classList.remove('show');
+  document.getElementById('downBtn').classList.remove('show');
+  document.getElementById('homeScreen').classList.remove('slide-left');
+  document.getElementById('chatScreen').classList.add('hidden');
+  renderChats();
+}
+
+function updateHeaderStatus() {
+  if (!currentPeer) return;
+  const c = ensureContact(currentPeer);
+  const av = document.getElementById('chatAv');
+  av.innerHTML = (c.dp ? `<img class="dp" src="${c.dp}" onclick="event.stopPropagation(); viewImg(this.src)">` : esc((c.name[0] || 'U').toUpperCase())) + '<span class="ring"></span>';
+  const sub = document.getElementById('chatSub');
+  if (onlineMap[currentPeer]) { av.classList.add('online'); sub.style.color = 'var(--v-100)'; sub.textContent = '● online'; }
+  else { av.classList.remove('online'); sub.style.color = 'var(--soft)'; sub.textContent = currentPeer; }
+}
+
+function nearBottom(w) { return (w.scrollHeight - w.scrollTop - w.clientHeight) < 120; }
+function onMsgScroll() {
+  const w = document.getElementById('msgWrap');
+  document.getElementById('downBtn').classList.toggle('show', (w.scrollHeight - w.scrollTop - w.clientHeight) > 180);
+}
+function scrollBottom(smooth) {
+  const w = document.getElementById('msgWrap');
+  if (smooth && w.scrollTo) w.scrollTo({ top: w.scrollHeight, behavior: 'smooth' });
+  else w.scrollTop = w.scrollHeight;
+  document.getElementById('downBtn').classList.remove('show');
+}
+
+function renderMsgs(forceBottom, autoNear) {
+  if (!currentPeer) return;
+  pruneExpiredMessages();
+  const w = document.getElementById('msgWrap');
+  const inner = document.getElementById('msgInner');
+  const prevTop = w.scrollTop; const wasNear = nearBottom(w);
+  const arr = state.messages[currentPeer] || [];
+
+  let html = `<div class="sys-note">Cloud synced & encrypted • ${esc(currentPeer)}</div>`;
+  for (const m of arr) {
+    const me = cleanEmail(m.from) === state.user.email;
+    const reacts = m.reactions ? Object.values(m.reactions) : [];
+    const qHtml = m.replyTo ? `<div class="quote"><div class="quote-who">${esc(m.replyTo.who)}</div><div class="quote-txt">${esc(m.replyTo.text)}</div></div>` : '';
+    const iHtml = m.img ? `<img class="msg-img" src="${m.img}" onclick="event.stopPropagation(); viewImg(this.src)">` : '';
+    const vHtml = m.audio ? `<button class="voice-play-btn" onclick="event.stopPropagation(); playVoiceData('${m.audio}')">▶ Voice Note</button>` : '';
+    let tks = '';
+    if (me) {
+      if (m.status === 'queued') tks = '<span class="ticks">🕒</span>';
+      else if (m.status === 'read') tks = '<span class="ticks read">✓✓</span>';
+      else if (m.status === 'delivered') tks = '<span class="ticks">✓✓</span>';
+      else tks = '<span class="ticks">✓</span>';
+    }
+    html += `
+      <div class="msg-row ${me ? 'me' : 'them'} ${reacts.length ? 'has-react' : ''}">
+        <div class="bubble" onclick="onBubbleTap('${m.id}', event)">
+          ${qHtml}${iHtml}${vHtml}
+          ${m.text ? `<div>${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}
+          <div class="msg-meta">
+            ${m.edited ? '<span>edited</span>' : ''}
+            ${m.expiresAt ? '<span>⏳</span>' : ''}
+            <span>${fmtTime(m.ts)}</span>${tks}
+          </div>
+          ${reacts.length ? `<div class="react-badge">${reacts.slice(0, 4).join('')}</div>` : ''}
+        </div>
+      </div>`;
+  }
+  inner.innerHTML = html;
+  if (forceBottom || (autoNear && wasNear)) requestAnimationFrame(() => scrollBottom(false));
+  else { w.scrollTop = prevTop; onMsgScroll(); }
+}
+
+function spawnHeartBurst(ev) {
+  if (state.animMode === 'off' || !ev) return;
+  const h = document.createElement('div');
+  h.className = 'heart-burst';
+  h.textContent = '💜';
+  h.style.left = (ev.clientX || window.innerWidth / 2) + 'px';
+  h.style.top = (ev.clientY || window.innerHeight / 2) + 'px';
+  document.body.appendChild(h);
+  setTimeout(() => h.remove(), 700);
+}
+
+let lastTap = 0, lastId = null;
+function onBubbleTap(id, ev) {
+  const now = Date.now();
+  if (lastId === id && now - lastTap < 300) {
+    selectedMsgId = id;
+    spawnHeartBurst(ev);
+    reactMsg('💜');
+    lastTap = 0; return;
+  }
+  lastTap = now; lastId = id;
+  setTimeout(() => { if (lastTap === now && lastId === id) { selectedMsgId = id; document.getElementById('msgSheet').classList.add('show'); } }, 305);
+}
+function closeMsgSheet() { document.getElementById('msgSheet').classList.remove('show'); }
+
+function reactMsg(em) {
+  closeMsgSheet();
+  const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
+  if (!m) return;
+  m.reactions = m.reactions || {}; m.reactions[state.user.email] = em;
+  saveState();
+  sendDirect(currentPeer, { type: 'react', name: state.user.name, msgId: m.id, emoji: em });
+  renderMsgs(false);
+}
+
+function replySelected() {
+  closeMsgSheet();
+  const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
+  if (!m) return;
+  activeReply = m;
+  document.getElementById('replyWho').textContent = cleanEmail(m.from) === state.user.email ? 'You' : getContact(currentPeer).name;
+  document.getElementById('replyPreview').textContent = m.img ? 'Photo' : (m.audio ? 'Voice message' : m.text);
+  document.getElementById('replyStrip').classList.add('show');
+  document.getElementById('msgInput').focus();
+}
+function cancelReply() { activeReply = null; document.getElementById('replyStrip').classList.remove('show'); }
+
+function pinSelected() {
+  closeMsgSheet();
+  const c = getContact(currentPeer);
+  const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
+  if (!c || !m) return;
+  c.pinnedId = m.id; saveState(); renderPinnedBar(c); toast('Pinned');
+}
+function renderPinnedBar(c) {
+  const bar = document.getElementById('pinnedBar');
+  const m = (state.messages[c.email] || []).find(x => x.id === c.pinnedId);
+  if (!m) { bar.classList.remove('show'); return; }
+  document.getElementById('pinnedText').textContent = m.text || (m.img ? 'Photo' : 'Voice message');
+  bar.classList.add('show');
+}
+function unpinMessage() {
+  const c = getContact(currentPeer); if (!c) return;
+  c.pinnedId = ''; saveState(); document.getElementById('pinnedBar').classList.remove('show');
+}
+function showPinnedToast() { toast(document.getElementById('pinnedText').textContent); }
+
+function editSelected() {
+  closeMsgSheet();
+  const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
+  if (!m || cleanEmail(m.from) !== state.user.email || !m.text) { toast('Can only edit your text messages'); return; }
+  const next = prompt('Edit message:', m.text);
+  if (next && next.trim()) {
+    m.text = next.trim(); m.edited = true; saveState();
+    sendDirect(currentPeer, { type: 'edit', name: state.user.name, msgId: m.id, text: m.text });
+    renderMsgs(false);
+  }
+}
+
+function unsendSelected() {
+  closeMsgSheet();
+  state.messages[currentPeer] = (state.messages[currentPeer] || []).filter(x => x.id !== selectedMsgId);
+  saveState();
+  sendDirect(currentPeer, { type: 'unsend', name: state.user.name, msgId: selectedMsgId });
+  renderMsgs(false); renderChats();
+}
+
+function copySelected() {
+  closeMsgSheet();
+  const m = (state.messages[currentPeer] || []).find(x => x.id === selectedMsgId);
+  if (m && m.text) copyText(m.text, 'Copied');
+}
+
+function initPeer() {
+  if (typeof Peer === 'undefined' || !state.user.email || peer) return;
+  peer = new Peer('vcgm_' + emailKey(state.user.email).slice(0, 8) + '_' + Math.random().toString(16).slice(2, 6), { debug: 0 });
+  peer.on('open', () => { peerReady = true; });
+  peer.on('call', c => { activeCall = c; if (window._ansStream) { c.answer(window._ansStream); bindCall(c); } });
+  peer.on('error', () => {});
+}
+
+async function startCall(type, overrideEm) {
+  const target = cleanEmail(overrideEm || currentPeer);
+  if (!target || !isConnected || !peer || !peerReady) { toast('Connect online first'); return; }
+  callType = type; callPeer = target; callMuted = false;
+  state.calls.unshift({ id: 'cl_' + Date.now(), email: target, phone: target, name: (getContact(target) || {}).name || target, type, dir: 'out', ts: Date.now() });
+  saveState();
+  try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' ? { facingMode: 'user' } : false }); }
+  catch (e) { toast('Allow mic/camera permission'); return; }
+  window._ansStream = localStream;
+  openCallScreen(target, type, 'Calling...', 'out');
+  sendDirect(target, { type: 'call_invite', name: state.user.name, callType: type, peerId: peer.id });
+}
+
+function onIncomingCall(fromEm, type, callerPeerId) {
+  callType = type; callPeer = fromEm; window._callerId = callerPeerId;
+  state.calls.unshift({ id: 'cl_' + Date.now(), email: fromEm, phone: fromEm, name: (getContact(fromEm) || {}).name || fromEm, type, dir: 'in', ts: Date.now() });
+  saveState();
+  openCallScreen(fromEm, type, type === 'video' ? 'Incoming video call' : 'Incoming voice call', 'in');
+}
+
+async function acceptCall() {
+  try { localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' ? { facingMode: 'user' } : false }); }
+  catch (e) { toast('Allow mic/camera permission'); endCall(false); return; }
+  if (callType === 'video') { const lv = document.getElementById('localVid'); lv.srcObject = localStream; lv.style.display = 'block'; }
+  const c = peer.call(window._callerId, localStream);
+  activeCall = c; bindCall(c); setCallBtns('active');
+}
+
+function bindCall(c) {
+  c.on('stream', rs => {
+    startTimer();
+    if (callType === 'video') { const rv = document.getElementById('remoteVid'); rv.srcObject = rs; rv.style.display = 'block'; }
+    else { document.getElementById('remoteAud').srcObject = rs; }
+  });
+  c.on('close', () => endCall(true));
+}
+
+function toggleMute() {
+  if (!localStream) return;
+  callMuted = !callMuted;
+  localStream.getAudioTracks().forEach(t => { t.enabled = !callMuted; });
+  toast(callMuted ? 'Muted' : 'Unmuted');
+}
+
+function endCall(remote) {
+  clearInterval(callTimer); callSec = 0; window._ansStream = null;
+  if (!remote && callPeer) sendDirect(callPeer, { type: 'call_end', name: state.user.name });
+  if (activeCall) { try { activeCall.close(); } catch (e) {} activeCall = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  document.getElementById('remoteVid').style.display = 'none';
+  document.getElementById('localVid').style.display = 'none';
+  document.getElementById('callOverlay').classList.remove('show');
+  callPeer = '';
+}
+
+function openCallScreen(em, type, st, mode) {
+  const c = getContact(em) || {};
+  const nm = c.name || em;
+  document.getElementById('callAv').innerHTML = c.dp ? `<img src="${c.dp}" alt="">` : esc((nm[0] || 'U').toUpperCase());
+  document.getElementById('callName').textContent = nm;
+  document.getElementById('callStatus').textContent = st;
+  setCallBtns(mode);
+  document.getElementById('callOverlay').classList.add('show');
+}
+
+function setCallBtns(mode) {
+  const box = document.getElementById('callActions');
+  if (mode === 'in') box.innerHTML = `<button class="c-circle no" onclick="endCall(false)">✕</button><button class="c-circle ok" onclick="acceptCall()">📞</button>`;
+  else box.innerHTML = `<button class="c-circle no" onclick="toggleMute()">🎙️</button><button class="c-circle no" onclick="endCall(false)">✕</button>`;
+}
+
+function startTimer() {
+  clearInterval(callTimer); callSec = 0; setCallBtns('active');
+  callTimer = setInterval(() => {
+    callSec++;
+    document.getElementById('callStatus').textContent = String(Math.floor(callSec / 60)).padStart(2, '0') + ':' + String(callSec % 60).padStart(2, '0');
+  }, 1000);
+}
+
+function openProfileModal() {
+  document.getElementById('profileEmailLbl').textContent = 'Google: ' + (state.user.email || '');
+  document.getElementById('profileNameInp').value = state.user.name || '';
+  tempDp = state.user.dp || '';
+  renderDpBox();
+  document.getElementById('profileModal').classList.add('show');
+}
+
+function handleDp(e) {
+  const f = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    const im = new Image();
+    im.onload = () => {
+      const sz = 110, s = Math.min(im.width, im.height);
+      const cv = document.createElement('canvas'); cv.width = sz; cv.height = sz;
+      cv.getContext('2d').drawImage(im, (im.width - s)/2, (im.height - s)/2, s, s, 0, 0, sz, sz);
+      tempDp = cv.toDataURL('image/jpeg', 0.68);
+      renderDpBox();
+    };
+    im.src = ev.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function renderDpBox() {
+  document.getElementById('dpBox').innerHTML = tempDp ? `<img class="dp" src="${tempDp}" alt="">` : esc((state.user.name[0] || 'U').toUpperCase());
+}
+
+function renderProfileIcon() {
+  const b = document.getElementById('profileBtn');
+  b.innerHTML = state.user.dp ? `<img class="dp" src="${state.user.dp}" alt="">` : esc((state.user.name[0] || 'U').toUpperCase());
+}
+
+function saveProfile() {
+  const nm = document.getElementById('profileNameInp').value.trim();
+  if (!nm) { toast('Name required'); return; }
+  state.user.name = nm; state.user.dp = tempDp || '';
+  saveState(); renderProfileIcon(); publishDirectory(); pingContacts(true);
+  closeModal('profileModal'); toast('Saved & synced to Google');
+}
+
+function openChatSettingsModal() {
+  const c = getContact(currentPeer); if (!c) return;
+  document.getElementById('optTitle').textContent = c.name;
+  document.getElementById('optEmail').textContent = c.email;
+  document.getElementById('timerSelect').value = String(c.disappearSec || 0);
+  updateChatOptUI(c);
+  document.getElementById('chatOptModal').classList.add('show');
+}
+
+function updateChatOptUI(c) {
+  document.getElementById('toggleLockBtn').textContent = c.locked ? '🔓 Unlock Chat' : '🔒 Lock Chat';
+  document.getElementById('toggleHideBtn').textContent = c.hidden ? '👁️ Unhide Chat' : '👁️ Hide Chat';
+}
+
+function clearChatHistory() {
+  if (!currentPeer) return;
+  state.messages[currentPeer] = [];
+  const c = getContact(currentPeer); if (c) c.lastText = '';
+  saveState(); closeModal('chatOptModal'); renderMsgs(true); renderChats(); toast('Cleared');
+}
+
+function showTyping() {
+  document.getElementById('typingBar').classList.add('show');
+  clearTimeout(typingTimers[currentPeer]);
+  typingTimers[currentPeer] = setTimeout(hideTyping, 3000);
+}
+function hideTyping() { document.getElementById('typingBar').classList.remove('show'); }
+
+function toggleEmojiStrip() { document.getElementById('emojiStrip').classList.toggle('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function viewImg(src) { document.getElementById('lightboxImg').src = src; document.getElementById('lightbox').classList.add('show'); }
+
+function copyText(txt, msg) {
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => toast(msg)).catch(() => {});
+}
+function toast(msg) {
+  const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.remove('show'), 2300);
+}
+
+(function init() {
+  applyAnimMode(state.animMode || 'premium');
+
+  const es = document.getElementById('emojiStrip');
+  EMOJIS.forEach(em => {
+    const b = document.createElement('button');
+    b.className = 'emoji-btn'; b.textContent = em;
+    b.onclick = () => { const i = document.getElementById('msgInput'); i.value += em; i.focus(); };
+    es.appendChild(b);
+  });
+
+  positionGlassSlider('tabChats');
+  initFirebase();
+
+  if (state.user.email && state.user.name) {
+    enterApp();
+    syncFromCloud(false);
+    subscribeCloudInbox();
+  }
+
+  const delay = state.animMode === 'off' ? 0 : 850;
+  setTimeout(() => {
+    const sp = document.getElementById('splashScreen');
+    if (sp) sp.classList.add('done');
+    positionGlassSlider(activeTab === 'calls' ? 'tabCalls' : 'tabChats');
+  }, delay);
+})();
+</script>
+</body>
+</html>
